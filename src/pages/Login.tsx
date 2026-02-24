@@ -5,20 +5,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BarChart3, ArrowLeft, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
       toast({ title: "Login Successful!" });
       navigate("/dashboard");
-    }, 1000);
+    } catch (error: any) {
+      toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -39,14 +47,14 @@ const Login = () => {
               <Label>Email</Label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required />
+                <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" type="password" placeholder="••••••••" required />
+                <Input className="pl-10" type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
