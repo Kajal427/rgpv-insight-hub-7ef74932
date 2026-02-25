@@ -45,7 +45,6 @@ export const HeroSection = () => {
         {/* Floating stat cards */}
         <div className="hidden lg:flex absolute right-8 top-1/2 -translate-y-1/2 flex-col gap-4">
           {[
-            { icon: BarChart3, label: "Results Analyzed", value: "50K+" },
             { icon: TrendingUp, label: "Prediction Accuracy", value: "92%" },
           ].map((stat, i) => (
             <div
