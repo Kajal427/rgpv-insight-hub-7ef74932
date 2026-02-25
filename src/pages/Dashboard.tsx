@@ -3,22 +3,27 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Upload, FileSpreadsheet, Globe, User, Clock, LogOut, BarChart3, Mail, Phone, Building } from "lucide-react";
+import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+
+type StudentResult = {
+  enrollment: string;
+  name: string;
+  sgpa: string;
+  status: string;
+};
 
 const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [enrollmentNo, setEnrollmentNo] = useState("");
-  const [fetchLoading, setFetchLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [results, setResults] = useState<StudentResult[]>([]);
   const [profile, setProfile] = useState<{
     full_name: string;
     email: string;
-    phone: string;
     department: string;
     created_at: string;
     last_sign_in: string;
@@ -45,7 +50,6 @@ const Dashboard = () => {
         setProfile({
           full_name: data.full_name,
           email: session.user.email || "",
-          phone: data.phone || "",
           department: data.department,
           created_at: new Date(data.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }),
           last_sign_in: session.user.last_sign_in_at
@@ -70,26 +74,56 @@ const Dashboard = () => {
     navigate("/");
   };
 
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCsvFile(file);
-      toast({ title: "File Selected", description: file.name });
+  const parseCsvAndFetch = async (file: File) => {
+    setCsvFile(file);
+    setFetching(true);
+    setResults([]);
+
+    try {
+      const text = await file.text();
+      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+
+      // Extract enrollment numbers (skip header if present)
+      const enrollments: string[] = [];
+      for (const line of lines) {
+        const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
+        // Find the first column that looks like an enrollment number
+        const enrollCol = cols.find((c) => /^[0-9]{4}[A-Z]{2,4}[0-9]{4,6}$/i.test(c));
+        if (enrollCol) enrollments.push(enrollCol.toUpperCase());
+      }
+
+      if (enrollments.length === 0) {
+        toast({ title: "No enrollment numbers found", description: "CSV should contain enrollment numbers like 0827CS211001", variant: "destructive" });
+        setFetching(false);
+        return;
+      }
+
+      const toFetch = enrollments.slice(0, 50);
+      toast({ title: `Fetching results for ${toFetch.length} students`, description: "Fetching from result.rgpv.com..." });
+
+      // Fetch results from result.rgpv.com via edge function
+      const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
+        body: { enrollments: toFetch },
+      });
+
+      if (error) {
+        toast({ title: "Fetch failed", description: "Could not fetch results. Please try again.", variant: "destructive" });
+      } else if (data?.results) {
+        setResults(data.results);
+        toast({ title: "Results fetched!", description: `Got results for ${data.results.length} students` });
+      }
+    } catch (err: any) {
+      toast({ title: "Error processing CSV", description: err.message, variant: "destructive" });
+    } finally {
+      setFetching(false);
     }
   };
 
-  const handleProcessCsv = () => {
-    if (!csvFile) return;
-    toast({ title: "Processing CSV", description: "Analyzing student data..." });
-  };
-
-  const handleFetchResult = () => {
-    if (!enrollmentNo) return;
-    setFetchLoading(true);
-    setTimeout(() => {
-      setFetchLoading(false);
-      toast({ title: "Result Fetched", description: `Result for ${enrollmentNo} fetched from result.rgpv.com` });
-    }, 2000);
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      parseCsvAndFetch(file);
+    }
   };
 
   if (loading) {
@@ -121,7 +155,6 @@ const Dashboard = () => {
               {[
                 { label: "Full Name", value: profile.full_name, icon: User },
                 { label: "Email", value: profile.email, icon: Mail },
-                { label: "Phone", value: profile.phone || "Not provided", icon: Phone },
                 { label: "Department", value: profile.department, icon: Building },
                 { label: "Registered On", value: profile.created_at, icon: Clock },
                 { label: "Last Login", value: profile.last_sign_in, icon: Clock },
@@ -138,63 +171,75 @@ const Dashboard = () => {
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* CSV Upload */}
-          <div className="bg-card border border-border rounded-xl p-6 card-glow">
-            <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-              <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Upload a CSV file with student enrollment numbers for bulk result analysis.
-            </p>
-            <div className="border-2 border-dashed border-border rounded-lg p-8 text-center mb-4 hover:border-primary/40 transition-colors">
-              <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground mb-2">
-                {csvFile ? csvFile.name : "Drag & drop or click to upload"}
-              </p>
-              <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
-            </div>
-            <div className="flex gap-3">
-              <Button onClick={handleProcessCsv} disabled={!csvFile} className="flex-1">
-                Process & Analyze
-              </Button>
-              <Link to="/analysis" className="flex-1">
-                <Button variant="outline" className="w-full gap-2">
+        {/* CSV Upload - auto fetches results */}
+        <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
+          <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Auto Fetch from result.rgpv.com
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Upload a CSV file with student enrollment numbers (up to 50 students). Results will be fetched automatically from result.rgpv.com.
+          </p>
+          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
+            {fetching ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                <p className="text-sm text-muted-foreground">Fetching results from result.rgpv.com...</p>
+              </div>
+            ) : (
+              <>
+                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-2">
+                  {csvFile ? csvFile.name : "Drag & drop or click to upload"}
+                </p>
+                <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Results Table */}
+        {results.length > 0 && (
+          <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
+              </h2>
+              <Link to="/analysis">
+                <Button variant="outline" size="sm" className="gap-2">
                   <BarChart3 className="h-4 w-4" /> View Analysis
                 </Button>
               </Link>
             </div>
-          </div>
-
-          {/* Fetch from RGPV */}
-          <div className="bg-card border border-border rounded-xl p-6 card-glow">
-            <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-              <Globe className="h-5 w-5 text-primary" /> Fetch from RGPV Portal
-            </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              Fetch individual student results directly from result.rgpv.com
-            </p>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Enrollment Number</Label>
-                <Input placeholder="e.g., 0827CS211001" value={enrollmentNo} onChange={(e) => setEnrollmentNo(e.target.value)} />
-              </div>
-              <Button onClick={handleFetchResult} disabled={!enrollmentNo || fetchLoading} className="w-full">
-                {fetchLoading ? "Fetching from result.rgpv.com..." : "Fetch Result"}
-              </Button>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">#</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Enrollment</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Name</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">SGPA</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.map((r, i) => (
+                    <tr key={r.enrollment} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
+                      <td className="py-3 px-4 text-muted-foreground">{i + 1}</td>
+                      <td className="py-3 px-4 font-mono">{r.enrollment}</td>
+                      <td className="py-3 px-4">{r.name}</td>
+                      <td className="py-3 px-4 font-semibold text-primary">{r.sgpa}</td>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === "Pass" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
+                          {r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="mt-6 bg-secondary/50 rounded-lg p-4">
-              <p className="text-xs text-muted-foreground mb-2">Sample Result Preview</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-muted-foreground">Student:</span> John Doe</div>
-                <div><span className="text-muted-foreground">Enrollment:</span> 0827CS211001</div>
-                <div><span className="text-muted-foreground">SGPA:</span> <span className="text-primary font-semibold">8.5</span></div>
-                <div><span className="text-muted-foreground">Status:</span> <span className="font-semibold text-primary">Pass</span></div>
-              </div>
-            </div>
           </div>
-        </div>
+        )}
       </div>
       <Footer />
     </div>
