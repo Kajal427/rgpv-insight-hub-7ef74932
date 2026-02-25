@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const DEPARTMENTS = [
   "Computer Science & Engineering",
@@ -41,7 +40,6 @@ const passwordRules = [
 const Register = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [step, setStep] = useState<"form" | "otp">("form");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -51,7 +49,6 @@ const Register = () => {
     department: "",
     password: "",
   });
-  const [otp, setOtp] = useState("");
 
   const passwordStrength = useMemo(() => {
     return passwordRules.map((rule) => ({
@@ -83,33 +80,13 @@ const Register = () => {
             phone: formData.phone,
             department: formData.department,
           },
-          emailRedirectTo: window.location.origin,
         },
-      });
-      if (error) throw error;
-      setStep("otp");
-      toast({ title: "Verification Email Sent!", description: `Check ${formData.email} for a confirmation link.` });
-    } catch (error: any) {
-      toast({ title: "Registration Failed", description: error.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.verifyOtp({
-        email: formData.email,
-        token: otp,
-        type: "signup",
       });
       if (error) throw error;
       toast({ title: "Registration Successful!", description: "Redirecting to dashboard..." });
       navigate("/dashboard");
     } catch (error: any) {
-      toast({ title: "Verification Failed", description: error.message, variant: "destructive" });
+      toast({ title: "Registration Failed", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -128,107 +105,81 @@ const Register = () => {
             <span className="font-display text-lg font-bold">Faculty Registration</span>
           </div>
 
-          {step === "form" ? (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Full Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input className="pl-10" placeholder="Dr. John Doe" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10" placeholder="Dr. John Doe" required value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
-                </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Phone</Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input className="pl-10" placeholder="+91 98765 43210" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-                </div>
+            <div className="space-y-2">
+              <Label>Phone</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-10" placeholder="+91 98765 43210" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
               </div>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Department</Label>
-                <Select value={formData.department} onValueChange={(val) => setFormData({ ...formData, department: val })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your department" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Department</Label>
+              <Select value={formData.department} onValueChange={(val) => setFormData({ ...formData, department: val })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="space-y-2">
-                <Label>Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    className="pl-10 pr-10"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
-                    required
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
-                  <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {formData.password && (
-                  <ul className="space-y-1 mt-2">
-                    {passwordStrength.map((rule) => (
-                      <li key={rule.label} className={`flex items-center gap-2 text-xs ${rule.passed ? "text-green-500" : "text-muted-foreground"}`}>
-                        {rule.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
-                        {rule.label}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-10 pr-10"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  required
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
               </div>
+              {formData.password && (
+                <ul className="space-y-1 mt-2">
+                  {passwordStrength.map((rule) => (
+                    <li key={rule.label} className={`flex items-center gap-2 text-xs ${rule.passed ? "text-green-500" : "text-muted-foreground"}`}>
+                      {rule.passed ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                      {rule.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-              <Button type="submit" className="w-full" disabled={loading || !allPasswordRulesPassed}>
-                {loading ? "Registering..." : "Register & Verify Email"}
-              </Button>
-              <p className="text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
-                <Link to="/login" className="text-primary hover:underline">Login</Link>
-              </p>
-            </form>
-          ) : (
-            <form onSubmit={handleVerify} className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Enter the 6-digit code sent to <span className="text-foreground font-medium">{formData.email}</span>
-              </p>
-              <div className="flex justify-center">
-                <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading || otp.length !== 6}>
-                {loading ? "Verifying..." : "Verify & Complete"}
-              </Button>
-              <Button type="button" variant="ghost" className="w-full" onClick={() => setStep("form")}>
-                Back to Registration
-              </Button>
-            </form>
-          )}
+            <Button type="submit" className="w-full" disabled={loading || !allPasswordRulesPassed}>
+              {loading ? "Registering..." : "Register"}
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link to="/login" className="text-primary hover:underline">Login</Link>
+            </p>
+          </form>
         </div>
       </div>
     </div>
