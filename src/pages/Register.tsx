@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BarChart3, ArrowLeft, Mail, Lock, User, Phone, Check, X, Eye, EyeOff } from "lucide-react";
+import { BarChart3, ArrowLeft, Mail, Lock, User, Check, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -41,11 +41,9 @@ const Register = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
-    phone: "",
     department: "",
     password: "",
   });
@@ -77,7 +75,6 @@ const Register = () => {
         options: {
           data: {
             full_name: formData.name,
-            phone: formData.phone,
             department: formData.department,
           },
         },
@@ -123,14 +120,6 @@ const Register = () => {
             </div>
 
             <div className="space-y-2">
-              <Label>Phone</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" placeholder="+91 98765 43210" required value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
-              </div>
-            </div>
-
-            <div className="space-y-2">
               <Label>Department</Label>
               <Select value={formData.department} onValueChange={(val) => setFormData({ ...formData, department: val })}>
                 <SelectTrigger>
@@ -149,16 +138,13 @@ const Register = () => {
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  className="pl-10 pr-10"
-                  type={showPassword ? "text" : "password"}
+                  className="pl-10"
+                  type="password"
                   placeholder="••••••••"
                   required
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 />
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => setShowPassword(!showPassword)}>
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
               </div>
               {formData.password && (
                 <ul className="space-y-1 mt-2">

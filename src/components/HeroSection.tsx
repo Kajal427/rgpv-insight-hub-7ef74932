@@ -42,22 +42,6 @@ export const HeroSection = () => {
           </div>
         </div>
 
-        {/* Floating stat cards */}
-        <div className="hidden lg:flex absolute right-8 top-1/2 -translate-y-1/2 flex-col gap-4">
-          {[
-            { icon: TrendingUp, label: "Prediction Accuracy", value: "92%" },
-          ].map((stat, i) => (
-            <div
-              key={stat.label}
-              className="glass-card rounded-xl p-5 animate-float"
-              style={{ animationDelay: `${i * 1.5}s` }}
-            >
-              <stat.icon className="h-5 w-5 text-primary mb-2" />
-              <p className="font-display text-2xl font-bold text-primary-foreground">{stat.value}</p>
-              <p className="text-xs text-primary-foreground/60">{stat.label}</p>
-            </div>
-          ))}
-        </div>
       </div>
     </section>
   );
