@@ -8,19 +8,29 @@ import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
+type SubjectGrade = { code: string; grade: string };
+
 type StudentResult = {
   enrollment: string;
   name: string;
   sgpa: string;
+  cgpa: string;
   status: string;
+  subjects: SubjectGrade[];
 };
+
+const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
+const SEMESTERS = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: `Semester ${i + 1}` }));
 
 const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [fetching, setFetching] = useState(false);
+  const [fetchProgress, setFetchProgress] = useState("");
   const [results, setResults] = useState<StudentResult[]>([]);
+  const [program, setProgram] = useState("B.Tech.");
+  const [semester, setSemester] = useState("1");
   const [profile, setProfile] = useState<{
     full_name: string;
     email: string;
@@ -33,10 +43,7 @@ const Dashboard = () => {
   useEffect(() => {
     const loadProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        navigate("/login");
-        return;
-      }
+      if (!session) { navigate("/login"); return; }
 
       const { data, error } = await supabase
         .from("profiles")
@@ -65,7 +72,6 @@ const Dashboard = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate("/login");
     });
-
     return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
@@ -78,16 +84,15 @@ const Dashboard = () => {
     setCsvFile(file);
     setFetching(true);
     setResults([]);
+    setFetchProgress("Reading CSV file...");
 
     try {
       const text = await file.text();
       const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
 
-      // Extract enrollment numbers (skip header if present)
       const enrollments: string[] = [];
       for (const line of lines) {
         const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
-        // Find the first column that looks like an enrollment number
         const enrollCol = cols.find((c) => /^[0-9]{4}[A-Z]{2,4}[0-9]{4,6}$/i.test(c));
         if (enrollCol) enrollments.push(enrollCol.toUpperCase());
       }
@@ -95,35 +100,36 @@ const Dashboard = () => {
       if (enrollments.length === 0) {
         toast({ title: "No enrollment numbers found", description: "CSV should contain enrollment numbers like 0827CS211001", variant: "destructive" });
         setFetching(false);
+        setFetchProgress("");
         return;
       }
 
       const toFetch = enrollments.slice(0, 50);
-      toast({ title: `Fetching results for ${toFetch.length} students`, description: "Fetching from result.rgpv.com..." });
+      setFetchProgress(`Fetching results for ${toFetch.length} students from result.rgpv.ac.in...`);
+      toast({ title: `Processing ${toFetch.length} students`, description: `Program: ${program}, Semester: ${semester}` });
 
-      // Fetch results from result.rgpv.com via edge function
       const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-        body: { enrollments: toFetch },
+        body: { enrollments: toFetch, semester, program },
       });
 
       if (error) {
-        toast({ title: "Fetch failed", description: "Could not fetch results. Please try again.", variant: "destructive" });
+        toast({ title: "Fetch failed", description: error.message || "Could not fetch results. Please try again.", variant: "destructive" });
       } else if (data?.results) {
         setResults(data.results);
-        toast({ title: "Results fetched!", description: `Got results for ${data.results.length} students` });
+        const successCount = data.results.filter((r: StudentResult) => r.status !== "Error" && r.name !== "Fetch Failed").length;
+        toast({ title: "Results fetched!", description: `Got ${successCount}/${data.results.length} results successfully` });
       }
     } catch (err: any) {
       toast({ title: "Error processing CSV", description: err.message, variant: "destructive" });
     } finally {
       setFetching(false);
+      setFetchProgress("");
     }
   };
 
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      parseCsvAndFetch(file);
-    }
+    if (file) parseCsvAndFetch(file);
   };
 
   if (loading) {
@@ -145,7 +151,7 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Faculty Details Card */}
+        {/* Faculty Details */}
         {profile && (
           <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
             <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
@@ -171,25 +177,57 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* CSV Upload - auto fetches results */}
+        {/* CSV Upload with Program & Semester Selection */}
         <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
           <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Auto Fetch from result.rgpv.com
+            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Auto Fetch from result.rgpv.ac.in
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Upload a CSV file with student enrollment numbers (up to 50 students). Results will be fetched automatically from result.rgpv.com.
+            Upload a CSV with student enrollment numbers (up to 50). Results will be fetched automatically using AI-powered CAPTCHA solving.
           </p>
+
+          {/* Program & Semester selectors */}
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Program</label>
+              <select
+                value={program}
+                onChange={(e) => setProgram(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                disabled={fetching}
+              >
+                {PROGRAMS.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Semester</label>
+              <select
+                value={semester}
+                onChange={(e) => setSemester(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                disabled={fetching}
+              >
+                {SEMESTERS.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
             {fetching ? (
               <div className="flex flex-col items-center gap-3">
                 <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                <p className="text-sm text-muted-foreground">Fetching results from result.rgpv.com...</p>
+                <p className="text-sm text-muted-foreground">{fetchProgress}</p>
+                <p className="text-xs text-muted-foreground">This may take a few minutes for large batches...</p>
               </div>
             ) : (
               <>
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
                 <p className="text-sm text-muted-foreground mb-2">
-                  {csvFile ? csvFile.name : "Drag & drop or click to upload"}
+                  {csvFile ? csvFile.name : "Drag & drop or click to upload CSV"}
                 </p>
                 <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
               </>
@@ -218,7 +256,9 @@ const Dashboard = () => {
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Enrollment</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Name</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">SGPA</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">CGPA</th>
                     <th className="text-left py-3 px-4 text-muted-foreground font-medium">Status</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground font-medium">Subjects</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -228,10 +268,30 @@ const Dashboard = () => {
                       <td className="py-3 px-4 font-mono">{r.enrollment}</td>
                       <td className="py-3 px-4">{r.name}</td>
                       <td className="py-3 px-4 font-semibold text-primary">{r.sgpa}</td>
+                      <td className="py-3 px-4">{r.cgpa}</td>
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${r.status === "Pass" ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"}`}>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          r.status === "PASS" || r.status === "Pass"
+                            ? "bg-green-500/10 text-green-500"
+                            : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
+                            ? "bg-red-500/10 text-red-500"
+                            : "bg-yellow-500/10 text-yellow-500"
+                        }`}>
                           {r.status}
                         </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {r.subjects && r.subjects.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {r.subjects.map((s, si) => (
+                              <span key={si} className="px-1.5 py-0.5 bg-secondary rounded text-xs font-mono">
+                                {s.code}:{s.grade}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
                       </td>
                     </tr>
                   ))}
