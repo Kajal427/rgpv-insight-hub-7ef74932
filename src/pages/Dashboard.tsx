@@ -116,6 +116,9 @@ const Dashboard = () => {
         toast({ title: "Fetch failed", description: error.message || "Could not fetch results. Please try again.", variant: "destructive" });
       } else if (data?.results) {
         setResults(data.results);
+        // Persist to localStorage for Analysis page
+        localStorage.setItem("rgpv_results", JSON.stringify(data.results));
+        localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
         const successCount = data.results.filter((r: StudentResult) => r.status !== "Error" && r.name !== "Fetch Failed").length;
         toast({ title: "Results fetched!", description: `Got ${successCount}/${data.results.length} results successfully` });
       }
