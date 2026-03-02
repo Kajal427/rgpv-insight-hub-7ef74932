@@ -169,6 +169,13 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // Helper: fetch with timeout
+    const fetchWithTimeout = (url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+    };
+
     // ACTION: init — start session, navigate to result page, return captcha image as base64
     if (action === "init") {
       const { program = "B.Tech." } = body;
@@ -336,9 +343,16 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
+    const isTimeout = msg.includes("timed out") || msg.includes("aborted") || msg.includes("Connection") || msg.includes("ECONNREFUSED");
     return new Response(
-      JSON.stringify({ success: false, error: msg }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ 
+        success: false, 
+        error: isTimeout 
+          ? "RGPV server is currently unreachable. Please wait a moment and try again." 
+          : msg,
+        needsRetry: isTimeout,
+      }),
+      { status: isTimeout ? 503 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
