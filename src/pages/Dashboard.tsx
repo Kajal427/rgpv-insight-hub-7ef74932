@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { CaptchaDialog } from "@/components/CaptchaDialog";
 
 type SubjectGrade = { code: string; grade: string };
 
@@ -19,45 +20,46 @@ type StudentResult = {
   subjects: SubjectGrade[];
 };
 
+type SessionData = {
+  cookies: string;
+  formFields: Record<string, string>;
+  resultPageUrl: string;
+};
+
 const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
 const SEMESTERS = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: `Semester ${i + 1}` }));
 
 const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [fetching, setFetching] = useState(false);
-  const [fetchProgress, setFetchProgress] = useState("");
   const [results, setResults] = useState<StudentResult[]>([]);
   const [program, setProgram] = useState("B.Tech.");
   const [semester, setSemester] = useState("1");
   const [profile, setProfile] = useState<{
-    full_name: string;
-    email: string;
-    department: string;
-    created_at: string;
-    last_sign_in: string;
+    full_name: string; email: string; department: string; created_at: string; last_sign_in: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // CAPTCHA flow state
+  const [captchaOpen, setCaptchaOpen] = useState(false);
+  const [captchaImage, setCaptchaImage] = useState<string | null>(null);
+  const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const [enrollments, setEnrollments] = useState<string[]>([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [lastResult, setLastResult] = useState<{ name: string; status: string } | null>(null);
+  const sessionRef = useRef<SessionData | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate("/login"); return; }
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", session.user.id)
-        .single();
-
+      const { data, error } = await supabase.from("profiles").select("*").eq("user_id", session.user.id).single();
       if (error || !data) {
         toast({ title: "Error loading profile", variant: "destructive" });
       } else {
         setProfile({
-          full_name: data.full_name,
-          email: session.user.email || "",
-          department: data.department,
+          full_name: data.full_name, email: session.user.email || "", department: data.department,
           created_at: new Date(data.created_at).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" }),
           last_sign_in: session.user.last_sign_in_at
             ? new Date(session.user.last_sign_in_at).toLocaleString("en-IN", { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -66,73 +68,163 @@ const Dashboard = () => {
       }
       setLoading(false);
     };
-
     loadProfile();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) navigate("/login");
     });
     return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate("/");
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
-  const parseCsvAndFetch = async (file: File) => {
-    setCsvFile(file);
-    setFetching(true);
-    setResults([]);
-    setFetchProgress("Reading CSV file...");
-
+  // Initialize a new session (get captcha)
+  const initSession = useCallback(async () => {
+    setCaptchaLoading(true);
+    setCaptchaError(null);
+    setCaptchaImage(null);
     try {
-      const text = await file.text();
-      const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-
-      const enrollments: string[] = [];
-      for (const line of lines) {
-        const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
-        const enrollCol = cols.find((c) => /^[0-9]{4}[A-Z]{2,4}[0-9]{4,6}$/i.test(c));
-        if (enrollCol) enrollments.push(enrollCol.toUpperCase());
-      }
-
-      if (enrollments.length === 0) {
-        toast({ title: "No enrollment numbers found", description: "CSV should contain enrollment numbers like 0827CS211001", variant: "destructive" });
-        setFetching(false);
-        setFetchProgress("");
+      const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
+        body: { action: "init", program },
+      });
+      if (error || !data?.success) {
+        setCaptchaError(data?.error || error?.message || "Failed to start session");
         return;
       }
+      setCaptchaImage(data.captchaImage);
+      sessionRef.current = data.sessionData;
+    } catch (err: any) {
+      setCaptchaError(err.message || "Network error");
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, [program]);
 
-      const toFetch = enrollments.slice(0, 50);
-      setFetchProgress(`Fetching results for ${toFetch.length} students from result.rgpv.ac.in...`);
-      toast({ title: `Processing ${toFetch.length} students`, description: `Program: ${program}, Semester: ${semester}` });
-
+  // Start the CAPTCHA flow after CSV upload
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const text = await file.text();
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    const found: string[] = [];
+    for (const line of lines) {
+      const cols = line.split(",").map((c) => c.trim().replace(/"/g, ""));
+      const enrollCol = cols.find((c) => /^[0-9]{4}[A-Z]{2,4}[0-9]{4,6}$/i.test(c));
+      if (enrollCol) found.push(enrollCol.toUpperCase());
+    }
+    if (found.length === 0) {
+      toast({ title: "No enrollment numbers found", variant: "destructive" });
+      return;
+    }
+    const toFetch = found.slice(0, 50);
+    setEnrollments(toFetch);
+    setCurrentIdx(0);
+    setResults([]);
+    setLastResult(null);
+    setCaptchaOpen(true);
+    toast({ title: `Found ${toFetch.length} enrollments`, description: "Solve CAPTCHAs to fetch results one by one." });
+    // Init first session
+    setCaptchaLoading(true);
+    setCaptchaError(null);
+    setCaptchaImage(null);
+    try {
       const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-        body: { enrollments: toFetch, semester, program },
+        body: { action: "init", program },
       });
-
-      if (error) {
-        toast({ title: "Fetch failed", description: error.message || "Could not fetch results. Please try again.", variant: "destructive" });
-      } else if (data?.results) {
-        setResults(data.results);
-        // Persist to localStorage for Analysis page
-        localStorage.setItem("rgpv_results", JSON.stringify(data.results));
-        localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
-        const successCount = data.results.filter((r: StudentResult) => r.status !== "Error" && r.name !== "Fetch Failed").length;
-        toast({ title: "Results fetched!", description: `Got ${successCount}/${data.results.length} results successfully` });
+      if (error || !data?.success) {
+        setCaptchaError(data?.error || error?.message || "Failed to start session");
+      } else {
+        setCaptchaImage(data.captchaImage);
+        sessionRef.current = data.sessionData;
       }
     } catch (err: any) {
-      toast({ title: "Error processing CSV", description: err.message, variant: "destructive" });
+      setCaptchaError(err.message);
     } finally {
-      setFetching(false);
-      setFetchProgress("");
+      setCaptchaLoading(false);
     }
   };
 
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) parseCsvAndFetch(file);
+  // Submit captcha answer for current student
+  const handleCaptchaSubmit = useCallback(async (answer: string) => {
+    if (!sessionRef.current || currentIdx >= enrollments.length) return;
+    setCaptchaLoading(true);
+    setCaptchaError(null);
+    const enrollment = enrollments[currentIdx];
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
+        body: {
+          action: "submit",
+          enrollment,
+          semester,
+          captchaAnswer: answer,
+          sessionData: sessionRef.current,
+        },
+      });
+      if (error || !data?.success) {
+        const errMsg = data?.error || error?.message || "Failed";
+        if (data?.needsRetry) {
+          setCaptchaError("Wrong CAPTCHA. Try again.");
+          // Re-init session for retry
+          await initSession();
+          return;
+        }
+        setCaptchaError(errMsg);
+        setCaptchaLoading(false);
+        return;
+      }
+      // Success — add result
+      const result = data.result as StudentResult;
+      setResults((prev) => {
+        const updated = [...prev, result];
+        localStorage.setItem("rgpv_results", JSON.stringify(updated));
+        localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
+        return updated;
+      });
+      setLastResult({ name: result.name, status: result.status });
+
+      // Move to next student
+      const nextIdx = currentIdx + 1;
+      if (nextIdx >= enrollments.length) {
+        // All done
+        setCaptchaOpen(false);
+        toast({ title: "All results fetched!", description: `Got ${results.length + 1} results.` });
+      } else {
+        setCurrentIdx(nextIdx);
+        // Use next session from response if available
+        if (data.nextSession) {
+          setCaptchaImage(data.nextSession.captchaImage);
+          sessionRef.current = data.nextSession.sessionData;
+          setCaptchaLoading(false);
+        } else {
+          await initSession();
+        }
+      }
+    } catch (err: any) {
+      setCaptchaError(err.message);
+    } finally {
+      setCaptchaLoading(false);
+    }
+  }, [currentIdx, enrollments, semester, program, initSession, results.length, toast]);
+
+  const handleSkip = useCallback(async () => {
+    const enrollment = enrollments[currentIdx];
+    setResults((prev) => [...prev, { enrollment, name: "Skipped", sgpa: "N/A", cgpa: "N/A", status: "Skipped", subjects: [] }]);
+    const nextIdx = currentIdx + 1;
+    if (nextIdx >= enrollments.length) {
+      setCaptchaOpen(false);
+      toast({ title: "Done!", description: `Processed ${results.length + 1} students.` });
+    } else {
+      setCurrentIdx(nextIdx);
+      await initSession();
+    }
+  }, [currentIdx, enrollments, initSession, results.length, toast]);
+
+  const handleCancel = () => {
+    setCaptchaOpen(false);
+    if (results.length > 0) {
+      localStorage.setItem("rgpv_results", JSON.stringify(results));
+      localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
+      toast({ title: "Cancelled", description: `Saved ${results.length} results fetched so far.` });
+    }
   };
 
   if (loading) {
@@ -180,61 +272,34 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* CSV Upload with Program & Semester Selection */}
+        {/* CSV Upload */}
         <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
           <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Auto Fetch from result.rgpv.ac.in
+            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Fetch from result.rgpv.ac.in
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Upload a CSV with student enrollment numbers (up to 50). Results will be fetched automatically using AI-powered CAPTCHA solving.
+            Upload a CSV with enrollment numbers. You'll solve a CAPTCHA for each student to fetch their results.
           </p>
-
-          {/* Program & Semester selectors */}
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">Program</label>
-              <select
-                value={program}
-                onChange={(e) => setProgram(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                disabled={fetching}
-              >
-                {PROGRAMS.map((p) => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
+              <select value={program} onChange={(e) => setProgram(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                {PROGRAMS.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">Semester</label>
-              <select
-                value={semester}
-                onChange={(e) => setSemester(e.target.value)}
-                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                disabled={fetching}
-              >
-                {SEMESTERS.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
+              <select value={semester} onChange={(e) => setSemester(e.target.value)}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                {SEMESTERS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
           </div>
-
           <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
-            {fetching ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="h-10 w-10 text-primary animate-spin" />
-                <p className="text-sm text-muted-foreground">{fetchProgress}</p>
-                <p className="text-xs text-muted-foreground">This may take a few minutes for large batches...</p>
-              </div>
-            ) : (
-              <>
-                <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground mb-2">
-                  {csvFile ? csvFile.name : "Drag & drop or click to upload CSV"}
-                </p>
-                <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
-              </>
-            )}
+            <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-2">Drag & drop or click to upload CSV</p>
+            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
           </div>
         </div>
 
@@ -276,9 +341,11 @@ const Dashboard = () => {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           r.status === "PASS" || r.status === "Pass"
                             ? "bg-green-500/10 text-green-500"
+                            : r.status === "Skipped"
+                            ? "bg-yellow-500/10 text-yellow-500"
                             : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
                             ? "bg-red-500/10 text-red-500"
-                            : "bg-yellow-500/10 text-yellow-500"
+                            : "bg-muted text-muted-foreground"
                         }`}>
                           {r.status}
                         </span>
@@ -305,6 +372,22 @@ const Dashboard = () => {
         )}
       </div>
       <Footer />
+
+      {/* CAPTCHA Dialog */}
+      <CaptchaDialog
+        open={captchaOpen}
+        captchaImage={captchaImage}
+        currentEnrollment={enrollments[currentIdx] || ""}
+        currentIndex={currentIdx}
+        totalCount={enrollments.length}
+        loading={captchaLoading}
+        error={captchaError}
+        onSubmit={handleCaptchaSubmit}
+        onSkip={handleSkip}
+        onRetry={initSession}
+        onCancel={handleCancel}
+        lastResult={lastResult}
+      />
     </div>
   );
 };
