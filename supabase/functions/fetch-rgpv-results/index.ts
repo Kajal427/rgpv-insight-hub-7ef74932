@@ -336,8 +336,82 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ACTION: solve-captcha — use AI to read captcha text from base64 image
+    if (action === "solve-captcha") {
+      const { captchaImage } = body;
+      if (!captchaImage) {
+        return new Response(
+          JSON.stringify({ success: false, error: "No captchaImage provided" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      if (!apiKey) {
+        return new Response(
+          JSON.stringify({ success: false, error: "AI API key not configured" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      try {
+        const aiResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://lovable.dev",
+            "X-Title": "RGPV Result Fetcher",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: { url: captchaImage },
+                  },
+                  {
+                    type: "text",
+                    text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation.",
+                  },
+                ],
+              },
+            ],
+            max_tokens: 20,
+            temperature: 0,
+          }),
+        });
+
+        const aiData = await aiResp.json();
+        console.log(`[solve-captcha] AI response status: ${aiResp.status}, body: ${JSON.stringify(aiData).substring(0, 500)}`);
+        const answer = aiData?.choices?.[0]?.message?.content?.trim() || "";
+        console.log(`[solve-captcha] AI answer: "${answer}"`);
+
+        if (!answer || answer.length > 10) {
+          return new Response(
+            JSON.stringify({ success: false, error: "AI could not read the CAPTCHA" }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, answer }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } catch (e) {
+        console.log(`[solve-captcha] Error: ${e}`);
+        return new Response(
+          JSON.stringify({ success: false, error: "AI service error" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: false, error: "Invalid action. Use 'init' or 'submit'." }),
+      JSON.stringify({ success: false, error: "Invalid action. Use 'init', 'submit', or 'solve-captcha'." }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
