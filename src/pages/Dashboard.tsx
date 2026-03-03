@@ -3,7 +3,8 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -206,6 +207,40 @@ const Dashboard = () => {
     }
   };
 
+  const exportToExcel = () => {
+    const valid = results.filter((r) => r.name !== "Skipped" && r.name !== "Fetch Failed");
+    if (valid.length === 0) return;
+
+    const wsData = valid.map((r, i) => {
+      const row: Record<string, string | number> = {
+        "#": i + 1, Enrollment: r.enrollment, Name: r.name, SGPA: r.sgpa, CGPA: r.cgpa, Status: r.status,
+      };
+      r.subjects?.forEach((s) => { row[s.code] = s.grade; });
+      return row;
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(wsData);
+    ws["!cols"] = Object.keys(wsData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, ...wsData.map((r) => String(r[key] || "").length)) + 2,
+    }));
+    XLSX.utils.book_append_sheet(wb, ws, "Results");
+
+    const statsData = [
+      { Metric: "Total Students", Value: valid.length },
+      { Metric: "Pass Count", Value: valid.filter((r) => r.status.toLowerCase().includes("pass")).length },
+      { Metric: "Pass %", Value: `${((valid.filter((r) => r.status.toLowerCase().includes("pass")).length / valid.length) * 100).toFixed(1)}%` },
+      { Metric: "Program", Value: program },
+      { Metric: "Semester", Value: semester },
+      { Metric: "Exported At", Value: new Date().toLocaleString() },
+    ];
+    const ws2 = XLSX.utils.json_to_sheet(statsData);
+    ws2["!cols"] = [{ wch: 20 }, { wch: 25 }];
+    XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+
+    XLSX.writeFile(wb, `RGPV_Results_${program}_Sem${semester}.xlsx`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -289,11 +324,16 @@ const Dashboard = () => {
               <h2 className="font-display text-lg font-semibold flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
-              <Link to="/analysis">
-                <Button variant="outline" size="sm" className="gap-2">
-                  <BarChart3 className="h-4 w-4" /> View Analysis
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
+                  <Download className="h-4 w-4" /> Export Excel
                 </Button>
-              </Link>
+                <Link to="/analysis">
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <BarChart3 className="h-4 w-4" /> View Analysis
+                  </Button>
+                </Link>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
