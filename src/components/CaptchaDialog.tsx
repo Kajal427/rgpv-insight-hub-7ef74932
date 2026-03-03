@@ -8,8 +8,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 
 interface CaptchaDialogProps {
   open: boolean;
@@ -34,28 +34,41 @@ export function CaptchaDialog({
   totalCount,
   loading,
   error,
+  onSubmit,
+  onSkip,
+  onRetry,
   onCancel,
   lastResult,
 }: CaptchaDialogProps) {
-  const progress = totalCount > 0 ? ((currentIndex) / totalCount) * 100 : 0;
+  const [answer, setAnswer] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open && captchaImage && !loading) {
+      setAnswer("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open, captchaImage, loading, currentEnrollment]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (answer.trim()) onSubmit(answer.trim());
+  };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
-            <span>Auto-Fetching Results</span>
+            <span>Solve CAPTCHA</span>
             <span className="text-sm font-normal text-muted-foreground">
               {currentIndex + 1} / {totalCount}
             </span>
           </DialogTitle>
           <DialogDescription>
-            AI is solving CAPTCHAs automatically. Currently processing:{" "}
-            <span className="font-mono font-semibold text-foreground">{currentEnrollment}</span>
+            Fetching result for: <span className="font-mono font-semibold text-foreground">{currentEnrollment}</span>
           </DialogDescription>
         </DialogHeader>
-
-        <Progress value={progress} className="h-2" />
 
         {lastResult && (
           <div className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg ${
@@ -72,29 +85,50 @@ export function CaptchaDialog({
           </div>
         )}
 
-        <div className="flex flex-col items-center gap-3 py-4">
-          {captchaImage && (
-            <img
-              src={captchaImage}
-              alt="CAPTCHA being solved"
-              className="border border-border rounded-lg max-h-20 bg-white opacity-60"
-            />
-          )}
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-5 w-5 text-primary animate-spin" />
-              <span>AI solving CAPTCHA & fetching result...</span>
-            </div>
-          ) : error ? (
+        {loading ? (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+            <p className="text-sm text-muted-foreground">
+              {captchaImage ? "Submitting..." : "Loading CAPTCHA..."}
+            </p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center gap-3 py-4">
             <p className="text-sm text-destructive text-center">{error}</p>
-          ) : null}
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onCancel}>
-            Cancel
-          </Button>
-        </DialogFooter>
+            <Button variant="outline" size="sm" onClick={onRetry} className="gap-2">
+              <RefreshCw className="h-4 w-4" /> Retry
+            </Button>
+          </div>
+        ) : captchaImage ? (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex justify-center">
+              <img
+                src={captchaImage}
+                alt="CAPTCHA"
+                className="border border-border rounded-lg max-h-24 bg-white"
+              />
+            </div>
+            <Input
+              ref={inputRef}
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="Type the characters shown above"
+              className="text-center text-lg font-mono tracking-widest"
+              autoComplete="off"
+            />
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" size="sm" onClick={onSkip}>
+                Skip
+              </Button>
+              <Button type="button" variant="outline" size="sm" onClick={onRetry} className="gap-1">
+                <RefreshCw className="h-3 w-3" /> New CAPTCHA
+              </Button>
+              <Button type="submit" size="sm" disabled={!answer.trim()}>
+                Submit
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

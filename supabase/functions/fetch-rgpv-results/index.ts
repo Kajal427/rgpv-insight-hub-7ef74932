@@ -355,27 +355,25 @@ Deno.serve(async (req) => {
       }
 
       try {
-        const aiResp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${apiKey}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://lovable.dev",
-            "X-Title": "RGPV Result Fetcher",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: "openai/gpt-5-nano",
             messages: [
               {
                 role: "user",
                 content: [
                   {
                     type: "image_url",
-                    image_url: { url: captchaImage },
+                    image_url: { url: captchaImage, detail: "high" },
                   },
                   {
                     type: "text",
-                    text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation.",
+                    text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation. The CAPTCHA contains alphanumeric characters (letters and digits).",
                   },
                 ],
               },
@@ -386,8 +384,17 @@ Deno.serve(async (req) => {
         });
 
         const aiData = await aiResp.json();
-        console.log(`[solve-captcha] AI response status: ${aiResp.status}, body: ${JSON.stringify(aiData).substring(0, 500)}`);
-        const answer = aiData?.choices?.[0]?.message?.content?.trim() || "";
+        console.log(`[solve-captcha] AI response status: ${aiResp.status}, body: ${JSON.stringify(aiData).substring(0, 300)}`);
+        
+        // Handle rate limit / payment errors
+        if (aiResp.status === 429 || aiResp.status === 402) {
+          return new Response(
+            JSON.stringify({ success: false, error: aiResp.status === 429 ? "AI rate limited, please wait" : "AI credits depleted" }),
+            { status: aiResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const answer = aiData?.choices?.[0]?.message?.content?.trim().replace(/[^a-zA-Z0-9]/g, "") || "";
         console.log(`[solve-captcha] AI answer: "${answer}"`);
 
         if (!answer || answer.length > 10) {
