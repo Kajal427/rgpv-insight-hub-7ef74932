@@ -9,6 +9,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CaptchaDialog } from "@/components/CaptchaDialog";
+import { AnalysisSection } from "@/components/AnalysisSection";
 
 type SubjectGrade = { code: string; grade: string };
 
@@ -360,6 +361,11 @@ const Dashboard = () => {
               </table>
             </div>
           </div>
+        )}
+
+        {/* Analysis Section */}
+        {results.length > 0 && (
+          <AnalysisSection results={results} program={program} semester={semester} />
         )}
       </div>
       <Footer />
