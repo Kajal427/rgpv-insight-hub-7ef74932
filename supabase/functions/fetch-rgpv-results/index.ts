@@ -336,85 +336,158 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ACTION: solve-captcha — use AI to read captcha text from base64 image
-    if (action === "solve-captcha") {
-      const { captchaImage } = body;
-      if (!captchaImage) {
-        return new Response(
-          JSON.stringify({ success: false, error: "No captchaImage provided" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+    // ACTION: auto-fetch — fully automated: init + AI solve + submit with retries
+    if (action === "auto-fetch") {
+      const { enrollment, semester = "1", program = "B.Tech.", sessionData: existingSession, captchaImage: existingCaptcha } = body;
+      if (!enrollment) {
+        return new Response(JSON.stringify({ success: false, error: "Missing enrollment" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) {
-        return new Response(
-          JSON.stringify({ success: false, error: "AI API key not configured" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return new Response(JSON.stringify({ success: false, error: "AI API key not configured" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      try {
-        const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-5-nano",
-            messages: [
-              {
+      const MAX_ATTEMPTS = 5;
+      let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
+      let captcha: string | null = existingCaptcha || null;
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          // Step 1: Init session if needed
+          if (!session || !captcha) {
+            const programId = programIds[program] || "24";
+            const step1 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, { method: "GET", headers: baseHeaders }, "");
+            const step1Fields = extractFormFields(step1.html);
+            const postBody = new URLSearchParams();
+            postBody.set("__VIEWSTATE", step1Fields.__VIEWSTATE || "");
+            postBody.set("__VIEWSTATEGENERATOR", step1Fields.__VIEWSTATEGENERATOR || "");
+            postBody.set("__EVENTVALIDATION", step1Fields.__EVENTVALIDATION || "");
+            postBody.set("__EVENTTARGET", "radlstProgram");
+            postBody.set("__EVENTARGUMENT", "");
+            postBody.set("radlstProgram", programId);
+            const step2 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, {
+              method: "POST",
+              headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": `${RGPV_BASE}/ProgramSelect.aspx` },
+              body: postBody.toString(),
+            }, step1.cookies);
+            const formFields = extractFormFields(step2.html);
+            const captchaUrl = extractCaptchaUrl(step2.html);
+            if (!captchaUrl) {
+              return new Response(JSON.stringify({ success: false, error: "RGPV site may be down (no CAPTCHA found)" }),
+                { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+            const imgResp = await fetch(captchaUrl, { headers: { "Cookie": step2.cookies, "User-Agent": ua } });
+            const imgBuf = await imgResp.arrayBuffer();
+            const b64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
+            const mime = imgResp.headers.get("content-type") || "image/png";
+            captcha = `data:${mime};base64,${b64}`;
+            session = { cookies: step2.cookies, formFields, resultPageUrl: step2.finalUrl };
+          }
+
+          // Step 2: AI solve captcha
+          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [{
                 role: "user",
                 content: [
-                  {
-                    type: "image_url",
-                    image_url: { url: captchaImage, detail: "high" },
-                  },
-                  {
-                    type: "text",
-                    text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation. The CAPTCHA contains alphanumeric characters (letters and digits).",
-                  },
+                  { type: "image_url", image_url: { url: captcha } },
+                  { type: "text", text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation." },
                 ],
-              },
-            ],
-            max_tokens: 20,
-            temperature: 0,
-          }),
-        });
+              }],
+              max_tokens: 20,
+              temperature: 0,
+            }),
+          });
 
-        const aiData = await aiResp.json();
-        console.log(`[solve-captcha] AI response status: ${aiResp.status}, body: ${JSON.stringify(aiData).substring(0, 300)}`);
-        
-        // Handle rate limit / payment errors
-        if (aiResp.status === 429 || aiResp.status === 402) {
-          return new Response(
-            JSON.stringify({ success: false, error: aiResp.status === 429 ? "AI rate limited, please wait" : "AI credits depleted" }),
-            { status: aiResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+          if (aiResp.status === 429 || aiResp.status === 402) {
+            const errMsg = aiResp.status === 429 ? "AI rate limited, please wait and retry" : "AI credits depleted";
+            return new Response(JSON.stringify({ success: false, error: errMsg }),
+              { status: aiResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+          const aiData = await aiResp.json();
+          const answer = aiData?.choices?.[0]?.message?.content?.trim().replace(/[^a-zA-Z0-9]/g, "") || "";
+          console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI answer="${answer}"`);
+
+          if (!answer || answer.length > 10) {
+            console.log(`[auto-fetch] Bad AI answer, reinit...`);
+            session = null; captcha = null;
+            continue;
+          }
+
+          // Step 3: Submit
+          const submitBody = new URLSearchParams();
+          submitBody.set("__VIEWSTATE", session.formFields.__VIEWSTATE || "");
+          submitBody.set("__VIEWSTATEGENERATOR", session.formFields.__VIEWSTATEGENERATOR || "");
+          submitBody.set("__EVENTVALIDATION", session.formFields.__EVENTVALIDATION || "");
+          submitBody.set("__EVENTTARGET", "");
+          submitBody.set("__EVENTARGUMENT", "");
+          submitBody.set("ctl00$ContentPlaceHolder1$txtrollno", enrollment);
+          submitBody.set("ctl00$ContentPlaceHolder1$drpSemester", semester);
+          submitBody.set("ctl00$ContentPlaceHolder1$TextBox1", answer);
+          submitBody.set("ctl00$ContentPlaceHolder1$btnviewresult", "View Result");
+
+          const step3 = await fetchWithCookies(session.resultPageUrl, {
+            method: "POST",
+            headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": session.resultPageUrl },
+            body: submitBody.toString(),
+          }, session.cookies);
+
+          const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+          if (alertMatch && alertMatch[1].toLowerCase().includes("captcha")) {
+            console.log(`[auto-fetch] ${enrollment}: wrong captcha, retry...`);
+            session = null; captcha = null;
+            continue;
+          }
+          if (alertMatch) {
+            return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+          const parsed = parseResultHtml(step3.html, enrollment);
+          if (parsed) {
+            console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
+            // Get next session for chaining
+            const newFields = extractFormFields(step3.html);
+            const newCaptchaUrl = extractCaptchaUrl(step3.html);
+            let nextSession: any = null;
+            if (newCaptchaUrl) {
+              try {
+                const imgResp2 = await fetch(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } });
+                const imgBuf2 = await imgResp2.arrayBuffer();
+                const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
+                const mime2 = imgResp2.headers.get("content-type") || "image/png";
+                nextSession = {
+                  captchaImage: `data:${mime2};base64,${b642}`,
+                  sessionData: { cookies: step3.cookies, formFields: Object.keys(newFields).length > 0 ? newFields : session.formFields, resultPageUrl: step3.finalUrl },
+                };
+              } catch (_) {}
+            }
+            return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+          return new Response(JSON.stringify({ success: false, error: "Could not parse result. Student may not have results for this semester." }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+        } catch (e) {
+          console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
+          session = null; captcha = null;
+          if (attempt === MAX_ATTEMPTS - 1) {
+            return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts: ${e instanceof Error ? e.message : "Unknown"}` }),
+              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
         }
-
-        const answer = aiData?.choices?.[0]?.message?.content?.trim().replace(/[^a-zA-Z0-9]/g, "") || "";
-        console.log(`[solve-captcha] AI answer: "${answer}"`);
-
-        if (!answer || answer.length > 10) {
-          return new Response(
-            JSON.stringify({ success: false, error: "AI could not read the CAPTCHA" }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, answer }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } catch (e) {
-        console.log(`[solve-captcha] Error: ${e}`);
-        return new Response(
-          JSON.stringify({ success: false, error: "AI service error" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
       }
+
+      return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(
