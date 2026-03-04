@@ -387,17 +387,17 @@ Deno.serve(async (req) => {
             session = { cookies: step2.cookies, formFields, resultPageUrl: step2.finalUrl };
           }
 
-          // Step 2: AI solve captcha
+          // Step 2: AI solve captcha using strong vision model
           const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
             headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
+              model: "google/gemini-2.5-pro",
               messages: [{
                 role: "user",
                 content: [
                   { type: "image_url", image_url: { url: captcha } },
-                  { type: "text", text: "Read the CAPTCHA text in this image. Reply with ONLY the exact characters shown, nothing else. No spaces, no explanation." },
+                  { type: "text", text: "This is a CAPTCHA image with distorted alphanumeric characters. Read ALL the characters carefully, including any that are partially obscured or stylized. Reply with ONLY the exact characters in order, no spaces, no punctuation, no explanation. Characters are case-sensitive. Common confusions: 0 vs O, 1 vs l vs I, 5 vs S, 8 vs B. Look very carefully." },
                 ],
               }],
               max_tokens: 20,
@@ -440,12 +440,15 @@ Deno.serve(async (req) => {
           }, session.cookies);
 
           const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
-          if (alertMatch && alertMatch[1].toLowerCase().includes("captcha")) {
-            console.log(`[auto-fetch] ${enrollment}: wrong captcha, retry...`);
-            session = null; captcha = null;
-            continue;
-          }
           if (alertMatch) {
+            const alertText = alertMatch[1].toLowerCase();
+            // Retry on any captcha/wrong text error
+            if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: wrong captcha ("${alertMatch[1]}"), retrying...`);
+              session = null; captcha = null;
+              continue;
+            }
+            // Non-captcha alert — return error
             return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
