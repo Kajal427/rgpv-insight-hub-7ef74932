@@ -41,15 +41,16 @@ const Dashboard = () => {
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // CAPTCHA flow state
+  // Auto-fetch state
   const [captchaOpen, setCaptchaOpen] = useState(false);
-  const [captchaImage, setCaptchaImage] = useState<string | null>(null);
-  const [captchaLoading, setCaptchaLoading] = useState(false);
   const [captchaError, setCaptchaError] = useState<string | null>(null);
   const [enrollments, setEnrollments] = useState<string[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [lastResult, setLastResult] = useState<{ name: string; status: string } | null>(null);
+  const [completedCount, setCompletedCount] = useState(0);
+  const abortRef = useRef(false);
   const sessionRef = useRef<SessionData | null>(null);
+  const captchaRef = useRef<string | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -78,29 +79,77 @@ const Dashboard = () => {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
-  // Initialize a new session (get captcha)
-  const initSession = useCallback(async () => {
-    setCaptchaLoading(true);
+  // Auto-fetch all results sequentially
+  const autoFetchAll = useCallback(async (enrollmentList: string[]) => {
+    abortRef.current = false;
+    setCaptchaOpen(true);
     setCaptchaError(null);
-    setCaptchaImage(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-        body: { action: "init", program },
-      });
-      if (error || !data?.success) {
-        setCaptchaError(data?.error || error?.message || "Failed to start session");
-        return;
-      }
-      setCaptchaImage(data.captchaImage);
-      sessionRef.current = data.sessionData;
-    } catch (err: any) {
-      setCaptchaError(err.message || "Network error");
-    } finally {
-      setCaptchaLoading(false);
-    }
-  }, [program]);
+    setCompletedCount(0);
+    setLastResult(null);
+    setResults([]);
+    sessionRef.current = null;
+    captchaRef.current = null;
 
-  // Start the CAPTCHA flow after CSV upload
+    const fetched: StudentResult[] = [];
+
+    for (let i = 0; i < enrollmentList.length; i++) {
+      if (abortRef.current) break;
+      setCurrentIdx(i);
+      setCaptchaError(null);
+
+      const enrollment = enrollmentList[i];
+      try {
+        const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
+          body: {
+            action: "auto-fetch",
+            enrollment,
+            semester,
+            program,
+            sessionData: sessionRef.current,
+            captchaImage: captchaRef.current,
+          },
+        });
+
+        if (error || !data?.success) {
+          const errMsg = data?.error || error?.message || "Failed";
+          setCaptchaError(`${enrollment}: ${errMsg}`);
+          fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
+        } else {
+          const result = data.result as StudentResult;
+          fetched.push(result);
+          setLastResult({ name: result.name, status: result.status });
+          // Chain session for next student
+          if (data.nextSession) {
+            sessionRef.current = data.nextSession.sessionData;
+            captchaRef.current = data.nextSession.captchaImage;
+          } else {
+            sessionRef.current = null;
+            captchaRef.current = null;
+          }
+        }
+      } catch (err: any) {
+        setCaptchaError(`${enrollment}: ${err.message}`);
+        fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
+        sessionRef.current = null;
+        captchaRef.current = null;
+      }
+
+      setResults([...fetched]);
+      setCompletedCount(i + 1);
+      localStorage.setItem("rgpv_results", JSON.stringify(fetched));
+      localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
+
+      // Small delay between requests
+      if (i < enrollmentList.length - 1 && !abortRef.current) {
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    setCaptchaOpen(false);
+    toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
+  }, [semester, program, toast]);
+
+  // Start the flow after CSV upload
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -118,92 +167,15 @@ const Dashboard = () => {
     }
     const toFetch = found.slice(0, 50);
     setEnrollments(toFetch);
-    setCurrentIdx(0);
-    setResults([]);
-    setLastResult(null);
-    setCaptchaOpen(true);
-    toast({ title: `Found ${toFetch.length} enrollments`, description: "Solve CAPTCHAs to fetch results one by one." });
-    await initSession();
+    toast({ title: `Found ${toFetch.length} enrollments`, description: "Auto-fetching results with AI CAPTCHA solving..." });
+    autoFetchAll(toFetch);
   };
 
-  // Submit captcha answer for current student
-  const handleCaptchaSubmit = useCallback(async (answer: string) => {
-    if (!sessionRef.current || currentIdx >= enrollments.length) return;
-    setCaptchaLoading(true);
-    setCaptchaError(null);
-    const enrollment = enrollments[currentIdx];
-    try {
-      const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-        body: {
-          action: "submit",
-          enrollment,
-          semester,
-          captchaAnswer: answer,
-          sessionData: sessionRef.current,
-        },
-      });
-      if (error || !data?.success) {
-        const errMsg = data?.error || error?.message || "Failed";
-        if (data?.needsRetry) {
-          setCaptchaError("Wrong CAPTCHA. Try again.");
-          await initSession();
-          return;
-        }
-        setCaptchaError(errMsg);
-        setCaptchaLoading(false);
-        return;
-      }
-      // Success — add result
-      const result = data.result as StudentResult;
-      setResults((prev) => {
-        const updated = [...prev, result];
-        localStorage.setItem("rgpv_results", JSON.stringify(updated));
-        localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
-        return updated;
-      });
-      setLastResult({ name: result.name, status: result.status });
-
-      // Move to next student
-      const nextIdx = currentIdx + 1;
-      if (nextIdx >= enrollments.length) {
-        setCaptchaOpen(false);
-        toast({ title: "All results fetched!", description: `Got ${results.length + 1} results.` });
-      } else {
-        setCurrentIdx(nextIdx);
-        if (data.nextSession) {
-          setCaptchaImage(data.nextSession.captchaImage);
-          sessionRef.current = data.nextSession.sessionData;
-          setCaptchaLoading(false);
-        } else {
-          await initSession();
-        }
-      }
-    } catch (err: any) {
-      setCaptchaError(err.message);
-    } finally {
-      setCaptchaLoading(false);
-    }
-  }, [currentIdx, enrollments, semester, program, initSession, results.length, toast]);
-
-  const handleSkip = useCallback(async () => {
-    const enrollment = enrollments[currentIdx];
-    setResults((prev) => [...prev, { enrollment, name: "Skipped", sgpa: "N/A", cgpa: "N/A", status: "Skipped", subjects: [] }]);
-    const nextIdx = currentIdx + 1;
-    if (nextIdx >= enrollments.length) {
-      setCaptchaOpen(false);
-      toast({ title: "Done!", description: `Processed ${results.length + 1} students.` });
-    } else {
-      setCurrentIdx(nextIdx);
-      await initSession();
-    }
-  }, [currentIdx, enrollments, initSession, results.length, toast]);
-
   const handleCancel = () => {
+    abortRef.current = true;
     setCaptchaOpen(false);
     if (results.length > 0) {
-      localStorage.setItem("rgpv_results", JSON.stringify(results));
-      localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
-      toast({ title: "Cancelled", description: `Saved ${results.length} results fetched so far.` });
+      toast({ title: "Stopped", description: `Saved ${results.length} results fetched so far.` });
     }
   };
 
@@ -292,7 +264,7 @@ const Dashboard = () => {
             <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Fetch from result.rgpv.ac.in
           </h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Upload a CSV with enrollment numbers. You'll solve a CAPTCHA for each student to fetch their results.
+            Upload a CSV with enrollment numbers. Results will be fetched automatically using AI-powered CAPTCHA solving.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <div>
@@ -395,17 +367,13 @@ const Dashboard = () => {
       {/* CAPTCHA Dialog */}
       <CaptchaDialog
         open={captchaOpen}
-        captchaImage={captchaImage}
         currentEnrollment={enrollments[currentIdx] || ""}
         currentIndex={currentIdx}
         totalCount={enrollments.length}
-        loading={captchaLoading}
         error={captchaError}
-        onSubmit={handleCaptchaSubmit}
-        onSkip={handleSkip}
-        onRetry={initSession}
         onCancel={handleCancel}
         lastResult={lastResult}
+        completedCount={completedCount}
       />
     </div>
   );
