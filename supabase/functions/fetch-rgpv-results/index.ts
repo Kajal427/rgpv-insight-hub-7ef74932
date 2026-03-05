@@ -148,6 +148,30 @@ function parseResultHtml(html: string, enrollment: string): StudentResult | null
   return result;
 }
 
+function extractAiText(aiData: any): string {
+  const messageContent = aiData?.choices?.[0]?.message?.content;
+
+  if (typeof messageContent === "string") return messageContent;
+
+  if (Array.isArray(messageContent)) {
+    const joined = messageContent
+      .map((part: any) => {
+        if (typeof part === "string") return part;
+        if (typeof part?.text === "string") return part.text;
+        if (typeof part?.content === "string") return part.content;
+        return "";
+      })
+      .join(" ")
+      .trim();
+    if (joined) return joined;
+  }
+
+  if (typeof aiData?.output_text === "string") return aiData.output_text;
+  if (typeof aiData?.choices?.[0]?.text === "string") return aiData.choices[0].text;
+
+  return "";
+}
+
 const programIds: Record<string, string> = {
   "B.E.": "1", "B.Tech.": "24", "M.C.A.": "5", "B.Pharmacy": "2",
   "M.E.": "6", "M.Tech.": "8", "Diploma": "3", "M.B.A.": "4",
@@ -347,10 +371,16 @@ Deno.serve(async (req) => {
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
       if (!apiKey) {
         return new Response(JSON.stringify({ success: false, error: "AI API key not configured" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 5;
+      const MAX_ATTEMPTS = 8;
+      const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      const captchaModels = [
+        "google/gemini-3-flash-preview",
+        "google/gemini-2.5-pro",
+      ];
+
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
 
@@ -373,13 +403,15 @@ Deno.serve(async (req) => {
               headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": `${RGPV_BASE}/ProgramSelect.aspx` },
               body: postBody.toString(),
             }, step1.cookies);
+
             const formFields = extractFormFields(step2.html);
             const captchaUrl = extractCaptchaUrl(step2.html);
             if (!captchaUrl) {
               return new Response(JSON.stringify({ success: false, error: "RGPV site may be down (no CAPTCHA found)" }),
-                { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
-            const imgResp = await fetch(captchaUrl, { headers: { "Cookie": step2.cookies, "User-Agent": ua } });
+
+            const imgResp = await fetchWithTimeout(captchaUrl, { headers: { "Cookie": step2.cookies, "User-Agent": ua } }, 15000);
             const imgBuf = await imgResp.arrayBuffer();
             const b64 = btoa(String.fromCharCode(...new Uint8Array(imgBuf)));
             const mime = imgResp.headers.get("content-type") || "image/png";
@@ -387,37 +419,56 @@ Deno.serve(async (req) => {
             session = { cookies: step2.cookies, formFields, resultPageUrl: step2.finalUrl };
           }
 
-          // Step 2: AI solve captcha using strong vision model
-          const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-pro",
-              messages: [{
-                role: "user",
-                content: [
-                  { type: "image_url", image_url: { url: captcha } },
-                  { type: "text", text: "This is a CAPTCHA image with distorted alphanumeric characters. Read ALL the characters carefully, including any that are partially obscured or stylized. Reply with ONLY the exact characters in order, no spaces, no punctuation, no explanation. Characters are case-sensitive. Common confusions: 0 vs O, 1 vs l vs I, 5 vs S, 8 vs B. Look very carefully." },
-                ],
-              }],
-              max_tokens: 20,
-              temperature: 0,
-            }),
-          });
+          // Step 2: AI solve captcha (fallback models)
+          let answer = "";
+          let lastAiError = "";
 
-          if (aiResp.status === 429 || aiResp.status === 402) {
-            const errMsg = aiResp.status === 429 ? "AI rate limited, please wait and retry" : "AI credits depleted";
-            return new Response(JSON.stringify({ success: false, error: errMsg }),
-              { status: aiResp.status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          for (const model of captchaModels) {
+            const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model,
+                messages: [{
+                  role: "user",
+                  content: [
+                    { type: "image_url", image_url: { url: captcha } },
+                    { type: "text", text: "Read this CAPTCHA and return ONLY the alphanumeric code. Output strictly uppercase letters and numbers only, no spaces, no punctuation, no explanation." },
+                  ],
+                }],
+                max_tokens: 16,
+                temperature: 0,
+              }),
+            }, 30000);
+
+            if (aiResp.status === 429 || aiResp.status === 402) {
+              const errMsg = aiResp.status === 429 ? "AI rate limited, please wait and retry" : "AI credits depleted";
+              return new Response(JSON.stringify({ success: false, error: errMsg }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            if (!aiResp.ok) {
+              lastAiError = `AI request failed (${aiResp.status})`;
+              continue;
+            }
+
+            const aiData = await aiResp.json();
+            const rawText = extractAiText(aiData);
+            const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}", cleaned="${cleaned}"`);
+
+            if (cleaned.length >= 4 && cleaned.length <= 8) {
+              answer = cleaned;
+              break;
+            }
           }
 
-          const aiData = await aiResp.json();
-          const answer = aiData?.choices?.[0]?.message?.content?.trim().replace(/[^a-zA-Z0-9]/g, "") || "";
-          console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI answer="${answer}"`);
-
-          if (!answer || answer.length > 10) {
-            console.log(`[auto-fetch] Bad AI answer, reinit...`);
-            session = null; captcha = null;
+          if (!answer) {
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI answer. ${lastAiError}`);
+            session = null;
+            captcha = null;
+            await wait(700);
             continue;
           }
 
@@ -442,13 +493,39 @@ Deno.serve(async (req) => {
           const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
           if (alertMatch) {
             const alertText = alertMatch[1].toLowerCase();
-            // Retry on any captcha/wrong text error
+
+            // Retry on captcha/wrong-text errors by using refreshed captcha from same page when possible
             if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
               console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: wrong captcha ("${alertMatch[1]}"), retrying...`);
-              session = null; captcha = null;
+
+              const retryFields = extractFormFields(step3.html);
+              const retryCaptchaUrl = extractCaptchaUrl(step3.html);
+
+              if (retryCaptchaUrl) {
+                try {
+                  const retryImgResp = await fetchWithTimeout(retryCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
+                  const retryImgBuf = await retryImgResp.arrayBuffer();
+                  const retryB64 = btoa(String.fromCharCode(...new Uint8Array(retryImgBuf)));
+                  const retryMime = retryImgResp.headers.get("content-type") || "image/png";
+                  captcha = `data:${retryMime};base64,${retryB64}`;
+                  session = {
+                    cookies: step3.cookies,
+                    formFields: Object.keys(retryFields).length > 0 ? retryFields : session.formFields,
+                    resultPageUrl: step3.finalUrl,
+                  };
+                  await wait(700);
+                  continue;
+                } catch {
+                  // fallback to full re-init below
+                }
+              }
+
+              session = null;
+              captcha = null;
+              await wait(700);
               continue;
             }
-            // Non-captcha alert — return error
+
             return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
@@ -456,41 +533,56 @@ Deno.serve(async (req) => {
           const parsed = parseResultHtml(step3.html, enrollment);
           if (parsed) {
             console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
+
             // Get next session for chaining
             const newFields = extractFormFields(step3.html);
             const newCaptchaUrl = extractCaptchaUrl(step3.html);
-            let nextSession: any = null;
+            let nextSession: { captchaImage: string; sessionData: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } } | null = null;
+
             if (newCaptchaUrl) {
               try {
-                const imgResp2 = await fetch(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } });
+                const imgResp2 = await fetchWithTimeout(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
                 const imgBuf2 = await imgResp2.arrayBuffer();
                 const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
                 const mime2 = imgResp2.headers.get("content-type") || "image/png";
                 nextSession = {
                   captchaImage: `data:${mime2};base64,${b642}`,
-                  sessionData: { cookies: step3.cookies, formFields: Object.keys(newFields).length > 0 ? newFields : session.formFields, resultPageUrl: step3.finalUrl },
+                  sessionData: {
+                    cookies: step3.cookies,
+                    formFields: Object.keys(newFields).length > 0 ? newFields : session.formFields,
+                    resultPageUrl: step3.finalUrl,
+                  },
                 };
-              } catch (_) {}
+              } catch (_) {
+                // no-op
+              }
             }
+
             return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
               { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
 
-          return new Response(JSON.stringify({ success: false, error: "Could not parse result. Student may not have results for this semester." }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          // If parse failed, refresh and retry instead of failing immediately
+          session = null;
+          captcha = null;
+          await wait(700);
 
         } catch (e) {
           console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
-          session = null; captcha = null;
+          session = null;
+          captcha = null;
+
           if (attempt === MAX_ATTEMPTS - 1) {
             return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts: ${e instanceof Error ? e.message : "Unknown"}` }),
-              { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
+
+          await wait(900);
         }
       }
 
       return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     return new Response(
