@@ -376,6 +376,8 @@ Deno.serve(async (req) => {
 
       const MAX_ATTEMPTS = 8;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+      const MAX_RATE_LIMIT_BACKOFFS = 6;
+      const AI_BASE_DELAY_MS = 1200;
       const captchaModels = [
         "google/gemini-3-flash-preview",
         "google/gemini-2.5-pro",
@@ -424,44 +426,59 @@ Deno.serve(async (req) => {
           let lastAiError = "";
 
           for (const model of captchaModels) {
-            const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model,
-                messages: [{
-                  role: "user",
-                  content: [
-                    { type: "image_url", image_url: { url: captcha } },
-                    { type: "text", text: "Read this CAPTCHA and return ONLY the alphanumeric code. Output strictly uppercase letters and numbers only, no spaces, no punctuation, no explanation." },
-                  ],
-                }],
-                max_tokens: 16,
-                temperature: 0,
-              }),
-            }, 30000);
+            let rateLimitBackoffs = 0;
 
-            if (aiResp.status === 429 || aiResp.status === 402) {
-              const errMsg = aiResp.status === 429 ? "AI rate limited, please wait and retry" : "AI credits depleted";
-              return new Response(JSON.stringify({ success: false, error: errMsg }),
-                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-            }
+            while (rateLimitBackoffs <= MAX_RATE_LIMIT_BACKOFFS) {
+              await wait(AI_BASE_DELAY_MS);
 
-            if (!aiResp.ok) {
-              lastAiError = `AI request failed (${aiResp.status})`;
-              continue;
-            }
+              const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model,
+                  messages: [{
+                    role: "user",
+                    content: [
+                      { type: "image_url", image_url: { url: captcha } },
+                      { type: "text", text: "Read this CAPTCHA and return ONLY the alphanumeric code. Output strictly uppercase letters and numbers only, no spaces, no punctuation, no explanation." },
+                    ],
+                  }],
+                  max_tokens: 16,
+                  temperature: 0,
+                }),
+              }, 30000);
 
-            const aiData = await aiResp.json();
-            const rawText = extractAiText(aiData);
-            const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              if (aiResp.status === 429) {
+                rateLimitBackoffs += 1;
+                const backoffMs = Math.min(20000, 3000 * (2 ** (rateLimitBackoffs - 1)));
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
+                await wait(backoffMs);
+                continue;
+              }
 
-            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}", cleaned="${cleaned}"`);
+              if (aiResp.status === 402) {
+                return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              }
 
-            if (cleaned.length >= 4 && cleaned.length <= 8) {
-              answer = cleaned;
+              if (!aiResp.ok) {
+                lastAiError = `AI request failed (${aiResp.status})`;
+                break;
+              }
+
+              const aiData = await aiResp.json();
+              const rawText = extractAiText(aiData);
+              const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}", cleaned="${cleaned}"`);
+
+              if (cleaned.length >= 4 && cleaned.length <= 8) {
+                answer = cleaned;
+              }
               break;
             }
+
+            if (answer) break;
           }
 
           if (!answer) {

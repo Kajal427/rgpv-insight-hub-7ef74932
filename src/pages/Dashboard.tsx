@@ -99,37 +99,76 @@ const Dashboard = () => {
       setCaptchaError(null);
 
       const enrollment = enrollmentList[i];
-      try {
-        const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-          body: {
-            action: "auto-fetch",
-            enrollment,
-            semester,
-            program,
-            sessionData: sessionRef.current,
-            captchaImage: captchaRef.current,
-          },
-        });
+      const MAX_ENROLLMENT_RETRIES = 3;
+      let succeeded = false;
+      let finalError = "Failed";
 
-        if (error || !data?.success) {
+      for (let attempt = 0; attempt < MAX_ENROLLMENT_RETRIES; attempt++) {
+        if (abortRef.current) break;
+
+        try {
+          const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
+            body: {
+              action: "auto-fetch",
+              enrollment,
+              semester,
+              program,
+              sessionData: sessionRef.current,
+              captchaImage: captchaRef.current,
+            },
+          });
+
+          if (!error && data?.success) {
+            const result = data.result as StudentResult;
+            fetched.push(result);
+            setLastResult({ name: result.name, status: result.status });
+            succeeded = true;
+
+            // Chain session for next student
+            if (data.nextSession) {
+              sessionRef.current = data.nextSession.sessionData;
+              captchaRef.current = data.nextSession.captchaImage;
+            } else {
+              sessionRef.current = null;
+              captchaRef.current = null;
+            }
+            break;
+          }
+
           const errMsg = data?.error || error?.message || "Failed";
-          setCaptchaError(`${enrollment}: ${errMsg}`);
-          fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
-        } else {
-          const result = data.result as StudentResult;
-          fetched.push(result);
-          setLastResult({ name: result.name, status: result.status });
-          // Chain session for next student
-          if (data.nextSession) {
-            sessionRef.current = data.nextSession.sessionData;
-            captchaRef.current = data.nextSession.captchaImage;
-          } else {
+          finalError = errMsg;
+          const isRateLimited = /rate limited/i.test(errMsg);
+          const isTransient = isRateLimited || /timed out|unreachable|aborted|connection/i.test(errMsg);
+
+          if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
+            const waitMs = isRateLimited ? 15000 : 6000;
+            setCaptchaError(`${enrollment}: ${isRateLimited ? "AI is busy" : errMsg}. Retrying in ${Math.ceil(waitMs / 1000)}s...`);
             sessionRef.current = null;
             captchaRef.current = null;
+            await new Promise((r) => setTimeout(r, waitMs));
+            continue;
           }
+
+          break;
+        } catch (err: any) {
+          const errMsg = err?.message || "Failed";
+          finalError = errMsg;
+          const isTransient = /timed out|unreachable|aborted|connection|rate limited/i.test(errMsg);
+
+          if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
+            setCaptchaError(`${enrollment}: Temporary issue. Retrying in 6s...`);
+            sessionRef.current = null;
+            captchaRef.current = null;
+            await new Promise((r) => setTimeout(r, 6000));
+            continue;
+          }
+
+          break;
         }
-      } catch (err: any) {
-        setCaptchaError(`${enrollment}: ${err.message}`);
+      }
+
+      if (!succeeded) {
+        setCaptchaError(`${enrollment}: ${finalError}`);
         fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
         sessionRef.current = null;
         captchaRef.current = null;
@@ -140,9 +179,9 @@ const Dashboard = () => {
       localStorage.setItem("rgpv_results", JSON.stringify(fetched));
       localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
 
-      // Small delay between requests
+      // Delay between students to avoid AI rate limits
       if (i < enrollmentList.length - 1 && !abortRef.current) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 2500));
       }
     }
 
