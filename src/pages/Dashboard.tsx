@@ -285,6 +285,15 @@ const Dashboard = () => {
     autoFetchAll(toFetch);
   };
 
+  const retryFailed = () => {
+    const failed = results.filter(r => r.status === "Error" || r.name === "Fetch Failed");
+    if (failed.length === 0) return;
+    const failedEnrollments = failed.map(r => r.enrollment);
+    setResults(prev => prev.filter(r => r.status !== "Error" && r.name !== "Fetch Failed"));
+    setEnrollments(failedEnrollments);
+    autoFetchAll(failedEnrollments);
+  };
+
   const handleCancel = () => {
     abortRef.current = true;
     setCaptchaOpen(false);
@@ -416,6 +425,11 @@ const Dashboard = () => {
                 <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
               <div className="flex gap-2">
+                {results.some(r => r.status === "Error" || r.name === "Fetch Failed") && (
+                  <Button variant="destructive" size="sm" className="gap-2" onClick={retryFailed}>
+                    <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter(r => r.status === "Error" || r.name === "Fetch Failed").length})
+                  </Button>
+                )}
                 <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
                   <Download className="h-4 w-4" /> Export Excel
                 </Button>
