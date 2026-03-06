@@ -374,12 +374,13 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 8;
+      const MAX_ATTEMPTS = 5;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 6;
-      const AI_BASE_DELAY_MS = 1200;
+      const MAX_RATE_LIMIT_BACKOFFS = 4;
+      const AI_BASE_DELAY_MS = 400;
       const captchaModels = [
-        "google/gemini-3-flash-preview",
+        "google/gemini-2.5-flash-lite",
+        "google/gemini-2.5-flash",
         "google/gemini-2.5-pro",
       ];
 
@@ -485,7 +486,7 @@ Deno.serve(async (req) => {
             console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI answer. ${lastAiError}`);
             session = null;
             captcha = null;
-            await wait(700);
+            await wait(300);
             continue;
           }
 
@@ -539,7 +540,7 @@ Deno.serve(async (req) => {
 
               session = null;
               captcha = null;
-              await wait(700);
+              await wait(300);
               continue;
             }
 
@@ -582,7 +583,7 @@ Deno.serve(async (req) => {
           // If parse failed, refresh and retry instead of failing immediately
           session = null;
           captcha = null;
-          await wait(700);
+          await wait(300);
 
         } catch (e) {
           console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
@@ -594,11 +595,17 @@ Deno.serve(async (req) => {
               { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
 
-          await wait(900);
+          await wait(300);
         }
       }
 
-      return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts` }),
+      // Return captcha image + session on failure for manual fallback
+      return new Response(JSON.stringify({ 
+        success: false, 
+        error: `Failed after ${MAX_ATTEMPTS} attempts`,
+        captchaImage: captcha,
+        sessionData: session,
+      }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 

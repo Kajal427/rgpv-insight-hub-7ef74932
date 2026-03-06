@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CaptchaDialog } from "@/components/CaptchaDialog";
+import { CaptchaDialog, ManualCaptchaData } from "@/components/CaptchaDialog";
 import { AnalysisSection } from "@/components/AnalysisSection";
 
 type SubjectGrade = { code: string; grade: string };
@@ -53,6 +53,10 @@ const Dashboard = () => {
   const sessionRef = useRef<SessionData | null>(null);
   const captchaRef = useRef<string | null>(null);
 
+  // Manual CAPTCHA fallback state
+  const [manualCaptchaData, setManualCaptchaData] = useState<ManualCaptchaData>(null);
+  const manualResolveRef = useRef<((action: { type: "submit"; answer: string } | { type: "skip" }) => void) | null>(null);
+
   useEffect(() => {
     const loadProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -80,6 +84,30 @@ const Dashboard = () => {
 
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
 
+  // Wait for manual CAPTCHA input from user
+  const waitForManualCaptcha = (enrollment: string, sessionData: any, captchaImage: string): Promise<{ type: "submit"; answer: string } | { type: "skip" }> => {
+    return new Promise((resolve) => {
+      manualResolveRef.current = resolve;
+      setManualCaptchaData({ enrollment, sessionData, captchaImage });
+    });
+  };
+
+  const handleManualSubmit = (answer: string) => {
+    if (manualResolveRef.current) {
+      manualResolveRef.current({ type: "submit", answer });
+      manualResolveRef.current = null;
+    }
+    setManualCaptchaData(null);
+  };
+
+  const handleManualSkip = () => {
+    if (manualResolveRef.current) {
+      manualResolveRef.current({ type: "skip" });
+      manualResolveRef.current = null;
+    }
+    setManualCaptchaData(null);
+  };
+
   // Auto-fetch all results sequentially
   const autoFetchAll = useCallback(async (enrollmentList: string[]) => {
     abortRef.current = false;
@@ -90,6 +118,7 @@ const Dashboard = () => {
     setResults([]);
     sessionRef.current = null;
     captchaRef.current = null;
+    setManualCaptchaData(null);
 
     const fetched: StudentResult[] = [];
 
@@ -124,7 +153,6 @@ const Dashboard = () => {
             setLastResult({ name: result.name, status: result.status });
             succeeded = true;
 
-            // Chain session for next student
             if (data.nextSession) {
               sessionRef.current = data.nextSession.sessionData;
               captchaRef.current = data.nextSession.captchaImage;
@@ -149,6 +177,49 @@ const Dashboard = () => {
             continue;
           }
 
+          // Check if we got a captcha image back for manual fallback
+          if (data?.captchaImage && data?.sessionData) {
+            setCaptchaError(null);
+            const manualAction = await waitForManualCaptcha(enrollment, data.sessionData, data.captchaImage);
+            
+            if (abortRef.current) break;
+
+            if (manualAction.type === "submit") {
+              // Submit with manual CAPTCHA answer
+              const { data: submitData, error: submitError } = await supabase.functions.invoke("fetch-rgpv-results", {
+                body: {
+                  action: "submit",
+                  enrollment,
+                  semester,
+                  captchaAnswer: manualAction.answer,
+                  sessionData: data.sessionData,
+                },
+              });
+
+              if (!submitError && submitData?.success) {
+                const result = submitData.result as StudentResult;
+                fetched.push(result);
+                setLastResult({ name: result.name, status: result.status });
+                succeeded = true;
+
+                if (submitData.nextSession) {
+                  sessionRef.current = submitData.nextSession.sessionData;
+                  captchaRef.current = submitData.nextSession.captchaImage;
+                } else {
+                  sessionRef.current = null;
+                  captchaRef.current = null;
+                }
+                break;
+              } else {
+                const submitErr = submitData?.error || submitError?.message || "Submit failed";
+                setCaptchaError(`${enrollment}: ${submitErr}`);
+                sessionRef.current = null;
+                captchaRef.current = null;
+              }
+            }
+            // If skip or submit failed, fall through to mark as failed
+          }
+
           break;
         } catch (err: any) {
           const errMsg = err?.message || "Failed";
@@ -168,10 +239,12 @@ const Dashboard = () => {
       }
 
       if (!succeeded) {
-        setCaptchaError(`${enrollment}: ${finalError}`);
-        fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
-        sessionRef.current = null;
-        captchaRef.current = null;
+        if (!fetched.find(f => f.enrollment === enrollment)) {
+          setCaptchaError(`${enrollment}: ${finalError}`);
+          fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
+          sessionRef.current = null;
+          captchaRef.current = null;
+        }
       }
 
       setResults([...fetched]);
@@ -179,13 +252,14 @@ const Dashboard = () => {
       localStorage.setItem("rgpv_results", JSON.stringify(fetched));
       localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
 
-      // Delay between students to avoid AI rate limits
+      // Reduced delay between students
       if (i < enrollmentList.length - 1 && !abortRef.current) {
-        await new Promise((r) => setTimeout(r, 2500));
+        await new Promise((r) => setTimeout(r, 1000));
       }
     }
 
     setCaptchaOpen(false);
+    setManualCaptchaData(null);
     toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
   }, [semester, program, toast]);
 
@@ -214,6 +288,11 @@ const Dashboard = () => {
   const handleCancel = () => {
     abortRef.current = true;
     setCaptchaOpen(false);
+    setManualCaptchaData(null);
+    if (manualResolveRef.current) {
+      manualResolveRef.current({ type: "skip" });
+      manualResolveRef.current = null;
+    }
     if (results.length > 0) {
       toast({ title: "Stopped", description: `Saved ${results.length} results fetched so far.` });
     }
@@ -409,7 +488,6 @@ const Dashboard = () => {
       </div>
       <Footer />
 
-      {/* CAPTCHA Dialog */}
       <CaptchaDialog
         open={captchaOpen}
         currentEnrollment={enrollments[currentIdx] || ""}
@@ -419,6 +497,9 @@ const Dashboard = () => {
         onCancel={handleCancel}
         lastResult={lastResult}
         completedCount={completedCount}
+        manualCaptchaData={manualCaptchaData}
+        onManualSubmit={handleManualSubmit}
+        onManualSkip={handleManualSkip}
       />
     </div>
   );

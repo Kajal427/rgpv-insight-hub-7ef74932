@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,8 +8,15 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, StopCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, StopCircle, KeyboardIcon, SkipForward } from "lucide-react";
+
+export type ManualCaptchaData = {
+  enrollment: string;
+  sessionData: any;
+  captchaImage: string;
+} | null;
 
 interface CaptchaDialogProps {
   open: boolean;
@@ -19,6 +27,10 @@ interface CaptchaDialogProps {
   onCancel: () => void;
   lastResult: { name: string; status: string } | null;
   completedCount: number;
+  // Manual CAPTCHA fallback
+  manualCaptchaData: ManualCaptchaData;
+  onManualSubmit: (captchaAnswer: string) => void;
+  onManualSkip: () => void;
 }
 
 export function CaptchaDialog({
@@ -30,9 +42,84 @@ export function CaptchaDialog({
   onCancel,
   lastResult,
   completedCount,
+  manualCaptchaData,
+  onManualSubmit,
+  onManualSkip,
 }: CaptchaDialogProps) {
+  const [manualInput, setManualInput] = useState("");
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
+  const handleManualSubmit = () => {
+    if (manualInput.trim()) {
+      onManualSubmit(manualInput.trim().toUpperCase());
+      setManualInput("");
+    }
+  };
+
+  // Manual CAPTCHA mode
+  if (manualCaptchaData) {
+    return (
+      <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyboardIcon className="h-5 w-5 text-primary" />
+              Manual CAPTCHA — {manualCaptchaData.enrollment}
+            </DialogTitle>
+            <DialogDescription>
+              Auto-solve failed for this enrollment. Enter the CAPTCHA text below to continue.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <Progress value={progress} className="h-3" />
+            <p className="text-xs text-muted-foreground text-right">{completedCount} / {totalCount}</p>
+
+            {manualCaptchaData.captchaImage && (
+              <div className="flex justify-center bg-secondary/50 rounded-lg p-4">
+                <img
+                  src={manualCaptchaData.captchaImage}
+                  alt="CAPTCHA"
+                  className="h-16 border border-border rounded"
+                />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter CAPTCHA text"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
+                className="font-mono uppercase"
+                autoFocus
+              />
+              <Button size="sm" onClick={handleManualSubmit} disabled={!manualInput.trim()}>
+                Submit
+              </Button>
+            </div>
+
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">
+                {error}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => { setManualInput(""); onManualSkip(); }}>
+              <SkipForward className="h-4 w-4" /> Skip
+            </Button>
+            <Button variant="destructive" size="sm" className="gap-2" onClick={onCancel}>
+              <StopCircle className="h-4 w-4" /> Stop All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Auto-fetch progress mode
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onCancel()}>
       <DialogContent className="sm:max-w-md">
