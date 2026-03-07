@@ -189,7 +189,7 @@ const Dashboard = () => {
     }
 
     setCaptchaOpen(false);
-    setManualCaptchaData(null);
+    
     toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
   }, [semester, program, toast]);
 
