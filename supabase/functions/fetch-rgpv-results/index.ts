@@ -374,12 +374,11 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 5;
+      const MAX_ATTEMPTS = 10;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const MAX_RATE_LIMIT_BACKOFFS = 4;
-      const AI_BASE_DELAY_MS = 400;
+      const AI_BASE_DELAY_MS = 300;
       const captchaModels = [
-        "google/gemini-2.5-flash-lite",
         "google/gemini-2.5-flash",
         "google/gemini-2.5-pro",
       ];
@@ -446,7 +445,7 @@ Deno.serve(async (req) => {
                     role: "user",
                     content: [
                       { type: "image_url", image_url: { url: captcha } },
-                      { type: "text", text: "Read this CAPTCHA and return ONLY the alphanumeric code. Output strictly uppercase letters and numbers only, no spaces, no punctuation, no explanation." },
+                      { type: "text", text: "This is a CAPTCHA image containing 4-6 alphanumeric characters (uppercase letters and digits). Read the characters carefully. Common confusions: 0 vs O, 1 vs I vs L, 5 vs S, 8 vs B, 2 vs Z. Return ONLY the exact characters you see, uppercase letters and digits only. No spaces, no punctuation, no explanation." },
                     ],
                   }],
                   max_tokens: 16,
@@ -606,47 +605,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Return last known captcha image + session for manual fallback
-      // If we don't have one, try to init a fresh session for manual entry
-      let fallbackCaptcha = lastKnownCaptcha;
-      let fallbackSession = lastKnownSession;
-      if (!fallbackCaptcha || !fallbackSession) {
-        try {
-          const programId = programIds[program] || "24";
-          const s1 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, { method: "GET", headers: baseHeaders }, "");
-          const s1f = extractFormFields(s1.html);
-          const pb = new URLSearchParams();
-          pb.set("__VIEWSTATE", s1f.__VIEWSTATE || "");
-          pb.set("__VIEWSTATEGENERATOR", s1f.__VIEWSTATEGENERATOR || "");
-          pb.set("__EVENTVALIDATION", s1f.__EVENTVALIDATION || "");
-          pb.set("__EVENTTARGET", "radlstProgram");
-          pb.set("__EVENTARGUMENT", "");
-          pb.set("radlstProgram", programId);
-          const s2 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, {
-            method: "POST",
-            headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": `${RGPV_BASE}/ProgramSelect.aspx` },
-            body: pb.toString(),
-          }, s1.cookies);
-          const ff = extractFormFields(s2.html);
-          const cu = extractCaptchaUrl(s2.html);
-          if (cu) {
-            const ir = await fetchWithTimeout(cu, { headers: { "Cookie": s2.cookies, "User-Agent": ua } }, 15000);
-            const ib = await ir.arrayBuffer();
-            const b = btoa(String.fromCharCode(...new Uint8Array(ib)));
-            const m = ir.headers.get("content-type") || "image/png";
-            fallbackCaptcha = `data:${m};base64,${b}`;
-            fallbackSession = { cookies: s2.cookies, formFields: ff, resultPageUrl: s2.finalUrl };
-          }
-        } catch (e) {
-          console.log(`[auto-fetch] ${enrollment}: failed to get fallback captcha: ${e}`);
-        }
-      }
-
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `Failed after ${MAX_ATTEMPTS} attempts`,
-        captchaImage: fallbackCaptcha,
-        sessionData: fallbackSession,
+        error: `Failed after ${MAX_ATTEMPTS} attempts. AI could not solve the CAPTCHA.`,
       }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
