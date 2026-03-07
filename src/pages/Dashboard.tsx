@@ -109,18 +109,18 @@ const Dashboard = () => {
   };
 
   // Auto-fetch all results sequentially
-  const autoFetchAll = useCallback(async (enrollmentList: string[]) => {
+  const autoFetchAll = useCallback(async (enrollmentList: string[], preserveExisting = false) => {
     abortRef.current = false;
     setCaptchaOpen(true);
     setCaptchaError(null);
     setCompletedCount(0);
     setLastResult(null);
-    setResults([]);
+    if (!preserveExisting) setResults([]);
     sessionRef.current = null;
     captchaRef.current = null;
     setManualCaptchaData(null);
 
-    const fetched: StudentResult[] = [];
+    const fetched: StudentResult[] = preserveExisting ? [...results.filter(r => r.status !== "Error" && r.name !== "Fetch Failed")] : [];
 
     for (let i = 0; i < enrollmentList.length; i++) {
       if (abortRef.current) break;
@@ -289,9 +289,8 @@ const Dashboard = () => {
     const failed = results.filter(r => r.status === "Error" || r.name === "Fetch Failed");
     if (failed.length === 0) return;
     const failedEnrollments = failed.map(r => r.enrollment);
-    setResults(prev => prev.filter(r => r.status !== "Error" && r.name !== "Fetch Failed"));
     setEnrollments(failedEnrollments);
-    autoFetchAll(failedEnrollments);
+    autoFetchAll(failedEnrollments, true);
   };
 
   const handleCancel = () => {
