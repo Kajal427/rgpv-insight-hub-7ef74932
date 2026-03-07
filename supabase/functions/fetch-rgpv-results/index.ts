@@ -386,6 +386,9 @@ Deno.serve(async (req) => {
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
+      // Preserve last known captcha/session for manual fallback
+      let lastKnownCaptcha: string | null = existingCaptcha || null;
+      let lastKnownSession: typeof session = existingSession || null;
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
@@ -420,6 +423,8 @@ Deno.serve(async (req) => {
             const mime = imgResp.headers.get("content-type") || "image/png";
             captcha = `data:${mime};base64,${b64}`;
             session = { cookies: step2.cookies, formFields, resultPageUrl: step2.finalUrl };
+            lastKnownCaptcha = captcha;
+            lastKnownSession = session;
           }
 
           // Step 2: AI solve captcha (fallback models)
@@ -531,7 +536,9 @@ Deno.serve(async (req) => {
                     formFields: Object.keys(retryFields).length > 0 ? retryFields : session.formFields,
                     resultPageUrl: step3.finalUrl,
                   };
-                  await wait(700);
+                  lastKnownCaptcha = captcha;
+                  lastKnownSession = session;
+                  await wait(300);
                   continue;
                 } catch {
                   // fallback to full re-init below
@@ -599,12 +606,47 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Return captcha image + session on failure for manual fallback
+      // Return last known captcha image + session for manual fallback
+      // If we don't have one, try to init a fresh session for manual entry
+      let fallbackCaptcha = lastKnownCaptcha;
+      let fallbackSession = lastKnownSession;
+      if (!fallbackCaptcha || !fallbackSession) {
+        try {
+          const programId = programIds[program] || "24";
+          const s1 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, { method: "GET", headers: baseHeaders }, "");
+          const s1f = extractFormFields(s1.html);
+          const pb = new URLSearchParams();
+          pb.set("__VIEWSTATE", s1f.__VIEWSTATE || "");
+          pb.set("__VIEWSTATEGENERATOR", s1f.__VIEWSTATEGENERATOR || "");
+          pb.set("__EVENTVALIDATION", s1f.__EVENTVALIDATION || "");
+          pb.set("__EVENTTARGET", "radlstProgram");
+          pb.set("__EVENTARGUMENT", "");
+          pb.set("radlstProgram", programId);
+          const s2 = await fetchWithCookies(`${RGPV_BASE}/ProgramSelect.aspx`, {
+            method: "POST",
+            headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": `${RGPV_BASE}/ProgramSelect.aspx` },
+            body: pb.toString(),
+          }, s1.cookies);
+          const ff = extractFormFields(s2.html);
+          const cu = extractCaptchaUrl(s2.html);
+          if (cu) {
+            const ir = await fetchWithTimeout(cu, { headers: { "Cookie": s2.cookies, "User-Agent": ua } }, 15000);
+            const ib = await ir.arrayBuffer();
+            const b = btoa(String.fromCharCode(...new Uint8Array(ib)));
+            const m = ir.headers.get("content-type") || "image/png";
+            fallbackCaptcha = `data:${m};base64,${b}`;
+            fallbackSession = { cookies: s2.cookies, formFields: ff, resultPageUrl: s2.finalUrl };
+          }
+        } catch (e) {
+          console.log(`[auto-fetch] ${enrollment}: failed to get fallback captcha: ${e}`);
+        }
+      }
+
       return new Response(JSON.stringify({ 
         success: false, 
         error: `Failed after ${MAX_ATTEMPTS} attempts`,
-        captchaImage: captcha,
-        sessionData: session,
+        captchaImage: fallbackCaptcha,
+        sessionData: fallbackSession,
       }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
