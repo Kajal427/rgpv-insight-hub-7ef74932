@@ -305,6 +305,10 @@ const Dashboard = () => {
   const handleCancel = () => {
     abortRef.current = true;
     setCaptchaOpen(false);
+    setManualCaptcha(null);
+    // Resolve any pending manual captcha promise
+    manualResolveRef.current?.({ action: "skip" });
+    manualResolveRef.current = null;
     if (results.length > 0) {
       toast({ title: "Stopped", description: `Saved ${results.length} results fetched so far.` });
     }
