@@ -24,8 +24,8 @@ export const Navbar = () => {
     <nav
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
         scrolled
-          ? "bg-background/80 backdrop-blur-xl border-b border-border shadow-sm"
-          : "bg-transparent"
+          ? "bg-background backdrop-blur-xl border-b border-border shadow-sm"
+          : "bg-background"
       }`}
     >
       <div className="container mx-auto flex items-center justify-between px-4 py-3">
@@ -34,9 +34,7 @@ export const Navbar = () => {
           <div className="h-9 w-9 rounded-lg bg-primary/10 group-hover:bg-primary/20 flex items-center justify-center transition-colors duration-300">
             <BarChart3 className="h-5 w-5 text-primary" />
           </div>
-          <span className={`font-display text-lg font-bold transition-colors duration-300 ${
-            scrolled ? "text-foreground" : "text-primary-foreground"
-          }`}>
+          <span className="font-display text-lg font-bold text-foreground">
             RGPV Analyzer
           </span>
         </Link>
@@ -47,11 +45,7 @@ export const Navbar = () => {
             <a
               key={l.href}
               href={l.href}
-              className={`relative px-4 py-2 text-sm font-medium transition-colors duration-300 rounded-lg hover:bg-primary/10 ${
-                scrolled
-                  ? "text-muted-foreground hover:text-primary"
-                  : "text-primary-foreground/70 hover:text-primary-foreground"
-              }`}
+              className="relative px-4 py-2 text-sm font-medium transition-colors duration-300 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary"
             >
               {l.label}
             </a>
@@ -63,9 +57,7 @@ export const Navbar = () => {
             <Button
               variant="ghost"
               size="sm"
-              className={`gap-1.5 ${
-                scrolled ? "" : "text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10"
-              }`}
+              className="gap-1.5"
             >
               <LogIn className="h-3.5 w-3.5" />
               Login
@@ -87,7 +79,7 @@ export const Navbar = () => {
             variant="ghost"
             size="icon"
             onClick={() => setMobileOpen(!mobileOpen)}
-            className={scrolled ? "" : "text-primary-foreground hover:bg-primary-foreground/10"}
+            className=""
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
