@@ -54,6 +54,14 @@ export const Navbar = () => {
             </a>
           ))}
 
+          {isAdmin && (
+            <Link to="/admin">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10">
+                <Shield className="h-3.5 w-3.5" /> Admin
+              </Button>
+            </Link>
+          )}
+
           <div className="w-px h-5 bg-[hsl(230,20%,20%)] mx-2" />
 
           <Link to="/login">
@@ -94,6 +102,13 @@ export const Navbar = () => {
             </a>
           ))}
           <div className="h-px bg-[hsl(230,20%,18%)] my-1" />
+          {isAdmin && (
+            <Link to="/admin" onClick={() => setMobileOpen(false)}>
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-amber-400 hover:text-amber-300">
+                <Shield className="h-3.5 w-3.5" /> Admin Panel
+              </Button>
+            </Link>
+          )}
           <Link to="/login" onClick={() => setMobileOpen(false)}>
             <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-[hsl(230,20%,60%)] hover:text-white">
               <LogIn className="h-3.5 w-3.5" /> Login
