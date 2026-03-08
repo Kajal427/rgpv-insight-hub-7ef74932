@@ -90,7 +90,30 @@ const Login = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-[hsl(230,15%,55%)]">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-[hsl(230,15%,55%)]">Password</Label>
+                <button
+                  type="button"
+                  className="text-xs text-[hsl(220,60%,65%)] hover:underline"
+                  onClick={async () => {
+                    if (!email) {
+                      toast({ title: "Please enter your email first", variant: "destructive" });
+                      return;
+                    }
+                    try {
+                      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                        redirectTo: `${window.location.origin}/reset-password`,
+                      });
+                      if (error) throw error;
+                      toast({ title: "Password reset email sent!", description: "Check your inbox." });
+                    } catch (err: any) {
+                      toast({ title: "Error", description: err.message, variant: "destructive" });
+                    }
+                  }}
+                >
+                  Forgot Password?
+                </button>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(230,15%,40%)]" />
                 <Input
