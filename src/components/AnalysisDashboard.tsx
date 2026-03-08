@@ -197,16 +197,27 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
         <div className="relative overflow-hidden rounded-2xl hero-gradient p-8 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm">
-                <BarChart3 className="h-6 w-6" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm">
+                  <BarChart3 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="font-display text-2xl font-bold">Performance Overview</h2>
+                  <p className="text-white/70 text-sm">
+                    {program && `${program} • `}Semester {semester || "—"} • {stats.total} students analyzed
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-display text-2xl font-bold">Performance Overview</h2>
-                <p className="text-white/70 text-sm">
-                  {program && `${program} • `}Semester {semester || "—"} • {stats.total} students analyzed
-                </p>
-              </div>
+              <Button
+                size="sm"
+                onClick={handlePredict}
+                disabled={predicting}
+                className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm"
+              >
+                {predicting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
+                AI Predict
+              </Button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
