@@ -7,8 +7,8 @@ export const HeroSection = () => {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden">
       {/* Background image */}
-      <div className="absolute inset-0 animate-[heroZoom_25s_ease-in-out_infinite_alternate]">
-        <img src={heroBg} alt="" className="w-full h-full object-cover scale-110" />
+      <div className="absolute inset-0">
+        <img src={heroBg} alt="" className="w-full h-full object-cover" />
         <div className="absolute inset-0 hero-gradient opacity-90" />
       </div>
 
