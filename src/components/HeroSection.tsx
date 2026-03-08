@@ -15,11 +15,11 @@ export const HeroSection = () => {
       <div className="container relative z-10 mx-auto px-4 py-32">
         <div className="max-w-3xl">
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-primary-foreground leading-tight mb-6 animate-fade-in-up">
-            Analyze & Predict
+            <span className="text-gradient">RGPV Insight:</span>
             <br />
-            <span className="text-gradient">RGPV Results</span>
+            Result Analysis &
             <br />
-            with Precision
+            Prediction Tool
           </h1>
           <p className="text-lg text-primary-foreground/70 max-w-xl mb-8 animate-fade-in-up" style={{ animationDelay: "0.2s" }}>
             Upload student data, fetch results from RGPV portal, and get powerful analytics with result prediction — all in one platform built for faculty.
