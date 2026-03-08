@@ -172,60 +172,92 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
   const hasCgpaData = useMemo(() => cgpaDistribution.some(d => d.count > 0), [cgpaDistribution]);
 
   const handlePredict = async () => {
+    if (predictInFlightRef.current) return;
+
+    if (predictCooldownUntil && Date.now() < predictCooldownUntil) {
+      const secondsLeft = Math.ceil((predictCooldownUntil - Date.now()) / 1000);
+      toast({ title: `Please wait ${secondsLeft}s before retrying AI Predict.` });
+      return;
+    }
+
+    predictInFlightRef.current = true;
     setPredicting(true);
     setShowPrediction(true);
     setPrediction(null);
 
     const MAX_RETRIES = 5;
-    const BASE_DELAY = 10000; // 10 seconds base
+    const BASE_DELAY = 15000;
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
+    const isRateLimit = (msg: string) => msg.includes("429") || msg.toLowerCase().includes("rate limit");
+
+    const readInvokeError = async (invokeError: any, invokeData: any) => {
+      let status: number | undefined;
+      let message = "";
+
+      if (invokeData?.error) {
+        message = String(invokeData.error);
+      }
+
+      if (invokeError) {
+        message = invokeError.message || message;
+        const context = invokeError.context;
+
+        if (context && typeof context.status === "number") {
+          status = context.status;
+          try {
+            const payload = await context.clone().json();
+            if (payload?.error) message = String(payload.error);
+          } catch {
+            // ignore body parse failures
+          }
+        }
+      }
+
+      return { status, message };
+    };
+
+    try {
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         const { data, error } = await supabase.functions.invoke("predict-results", {
           body: { results: validResults, program, semester },
         });
 
-        const isRateLimit = (msg: string) =>
-          msg.includes("429") || msg.toLowerCase().includes("rate limit");
+        if (error || data?.error) {
+          const { status, message } = await readInvokeError(error, data);
 
-        // Handle error object from invoke
-        if (error) {
-          const msg = error.message || "";
-          if (isRateLimit(msg) && attempt < MAX_RETRIES) {
-            const delay = BASE_DELAY * attempt; // exponential: 10s, 20s, 30s, 40s
-            toast({ title: `⏳ Rate limited — retrying in ${delay / 1000}s (${attempt}/${MAX_RETRIES})...` });
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
-          throw error;
-        }
-
-        // Handle error in response body
-        if (data?.error) {
-          if (isRateLimit(data.error) && attempt < MAX_RETRIES) {
-            const delay = BASE_DELAY * attempt;
-            toast({ title: `⏳ Rate limited — retrying in ${delay / 1000}s (${attempt}/${MAX_RETRIES})...` });
-            await new Promise(r => setTimeout(r, delay));
-            continue;
-          }
-          if (data.error.includes("402") || data.error.includes("credits")) {
+          if (status === 402 || message.toLowerCase().includes("credit")) {
             throw new Error("AI credits exhausted. Please add credits to your workspace.");
           }
-          throw new Error(data.error);
+
+          if (status === 429 || isRateLimit(message)) {
+            if (attempt < MAX_RETRIES) {
+              const delay = BASE_DELAY * attempt;
+              toast({ title: `⏳ AI busy — retrying in ${delay / 1000}s (${attempt}/${MAX_RETRIES})...` });
+              await new Promise((r) => setTimeout(r, delay));
+              continue;
+            }
+
+            setPredictCooldownUntil(Date.now() + 60000);
+            throw new Error("AI is currently rate-limited. Please retry after 1 minute.");
+          }
+
+          throw new Error(message || "Prediction failed.");
+        }
+
+        if (!data?.prediction) {
+          throw new Error("Prediction response was empty.");
         }
 
         setPrediction(data.prediction);
-        setPredicting(false);
-        return; // success
-      } catch (e: any) {
-        if (attempt === MAX_RETRIES) {
-          toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
-          setShowPrediction(false);
-          setPredicting(false);
-        }
+        return;
       }
+    } catch (e: any) {
+      toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
+      setShowPrediction(false);
+    } finally {
+      setPredicting(false);
+      predictInFlightRef.current = false;
     }
-    setPredicting(false);
   };
 
   if (validResults.length === 0) return null;
