@@ -225,29 +225,39 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Faculty Details */}
+        {/* Faculty Details — Collapsible */}
         {profile && (
           <div className={`${cardClasses} p-6 mb-8`}>
-            <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2 text-white">
-              <User className="h-5 w-5 text-[hsl(220,60%,65%)]" /> Faculty Details
-            </h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[
-                { label: "Full Name", value: profile.full_name, icon: User },
-                { label: "Email", value: profile.email, icon: Mail },
-                { label: "Department", value: profile.department, icon: Building },
-                { label: "Registered On", value: profile.created_at, icon: Clock },
-                { label: "Last Login", value: profile.last_sign_in, icon: Clock },
-              ].map((item) => (
-                <div key={item.label} className="bg-[hsl(230,30%,10%)] rounded-lg p-4 flex items-start gap-3 border border-[hsl(230,20%,18%)]">
-                  <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)] mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs text-[hsl(230,15%,45%)] mb-1">{item.label}</p>
-                    <p className="text-sm font-medium text-white">{item.value}</p>
-                  </div>
-                </div>
-              ))}
+            <div
+              className="flex items-center justify-between cursor-pointer group"
+              onClick={() => setShowProfile(!showProfile)}
+            >
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-white">
+                <User className="h-5 w-5 text-[hsl(220,60%,65%)]" />
+                {profile.full_name}
+              </h2>
+              <span className={`text-[hsl(230,15%,50%)] transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}>
+                ▾
+              </span>
             </div>
+            {showProfile && (
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4 animate-fade-in">
+                {[
+                  { label: "Email", value: profile.email, icon: Mail },
+                  { label: "Department", value: profile.department, icon: Building },
+                  { label: "Registered On", value: profile.created_at, icon: Clock },
+                  { label: "Last Login", value: profile.last_sign_in, icon: Clock },
+                ].map((item) => (
+                  <div key={item.label} className="bg-[hsl(230,30%,10%)] rounded-lg p-4 flex items-start gap-3 border border-[hsl(230,20%,18%)]">
+                    <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)] mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-[hsl(230,15%,45%)] mb-1">{item.label}</p>
+                      <p className="text-sm font-medium text-white">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
