@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CaptchaDialog } from "@/components/CaptchaDialog";
 import { AnalysisSection } from "@/components/AnalysisSection";
+import { ActivityHistory, logActivity } from "@/components/ActivityHistory";
 
 type SubjectGrade = { code: string; grade: string };
 
@@ -79,7 +80,11 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
-  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/"); };
+  const handleLogout = async () => {
+    await logActivity("logout");
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
 
   // Auto-fetch all results sequentially
@@ -190,6 +195,7 @@ const Dashboard = () => {
 
     setCaptchaOpen(false);
     
+    logActivity("result_fetch", { program, semester, total: fetched.filter(r => r.name !== "Fetch Failed").length });
     toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
   }, [semester, program, toast]);
 
@@ -212,6 +218,7 @@ const Dashboard = () => {
     const toFetch = found.slice(0, 50);
     setEnrollments(toFetch);
     toast({ title: `Found ${toFetch.length} enrollments`, description: "Auto-fetching results with AI CAPTCHA solving..." });
+    logActivity("csv_upload", { count: toFetch.length });
     autoFetchAll(toFetch);
   };
 
@@ -263,6 +270,7 @@ const Dashboard = () => {
     XLSX.utils.book_append_sheet(wb, ws2, "Summary");
 
     XLSX.writeFile(wb, `RGPV_Results_${program}_Sem${semester}.xlsx`);
+    logActivity("export_excel", { program, semester, count: valid.length });
   };
 
   if (loading) {
@@ -418,6 +426,9 @@ const Dashboard = () => {
             </div>
           </div>
         )}
+
+        {/* Activity History */}
+        <ActivityHistory />
 
         {/* Analysis Section */}
         {results.length > 0 && (
