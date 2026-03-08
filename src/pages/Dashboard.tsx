@@ -129,9 +129,9 @@ const Dashboard = () => {
     const failed = results.filter((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found");
     if (failed.length === 0) return;
     const failedEnrollments = failed.map((r) => r.enrollment);
-    const successfulResults = results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed");
+    // Keep all results so retried ones update in-place at their original position
     setCaptchaOpen(true);
-    fetchQueue.start(failedEnrollments, program, semester, successfulResults);
+    fetchQueue.start(failedEnrollments, program, semester, [...results]);
   };
 
   const handleCancel = () => {
