@@ -52,7 +52,7 @@ serve(async (req) => {
 Your job: Analyze each student's SGPA, CGPA, and subject grades to PREDICT their next semester performance.
 
 Rules:
-- Use Hindi-English mixed language (Hinglish) that Indian faculty understand easily
+- Use clear, professional English
 - Be data-driven: reference actual SGPA/CGPA numbers
 - For EACH student, give a short prediction line
 - Use emoji for visual appeal
