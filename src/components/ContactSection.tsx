@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Mail, MapPin, Phone, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const contactInfo = [
-  { icon: Mail, label: "Email", value: "support@rgpvanalyzer.com", href: "mailto:support@rgpvanalyzer.com" },
+  { icon: Mail, label: "Email", value: "suppotrgpv@gmail.com", href: "mailto:suppotrgpv@gmail.com" },
   { icon: Phone, label: "Phone", value: "+91 98765 43210", href: "tel:+919876543210" },
   { icon: MapPin, label: "Address", value: "RGPV Campus, Bhopal, Madhya Pradesh, India", href: null },
 ];
@@ -26,14 +27,35 @@ export const ContactSection = () => {
     return () => observer.disconnect();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+
+    const form = e.target as HTMLFormElement;
+    const formData = new FormData(form);
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const subject = formData.get("subject") as string;
+    const message = formData.get("message") as string;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("send-contact-email", {
+        body: { name, email, subject, message },
+      });
+
+      if (error) throw error;
+
       toast({ title: "Message sent!", description: "We'll get back to you soon." });
-      (e.target as HTMLFormElement).reset();
-    }, 1000);
+      form.reset();
+    } catch (err: any) {
+      toast({
+        title: "Failed to send message",
+        description: err?.message || "Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -78,11 +100,11 @@ export const ContactSection = () => {
 
           <form onSubmit={handleSubmit} className="lg:col-span-3 bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <Input placeholder="Your Name" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
-              <Input type="email" placeholder="Your Email" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
+              <Input name="name" placeholder="Your Name" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
+              <Input name="email" type="email" placeholder="Your Email" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
             </div>
-            <Input placeholder="Subject" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
-            <Textarea placeholder="Your Message" rows={4} required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)] resize-none" />
+            <Input name="subject" placeholder="Subject" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
+            <Textarea name="message" placeholder="Your Message" rows={4} required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)] resize-none" />
             <Button type="submit" className="w-full gap-2 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white" disabled={loading}>
               {loading ? "Sending..." : (
                 <>Send Message <Send className="h-4 w-4" /></>
