@@ -37,21 +37,14 @@ Deno.serve(async (req) => {
     );
 
     // Rate limit: one OTP request every 30 seconds per email
-    const { data: recentOtp, error: recentOtpError } = await supabase
+    // Only consider verified=false entries that haven't expired
+    const { data: recentOtp } = await supabase
       .from("otp_verifications")
       .select("created_at")
       .eq("email", email)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-
-    if (recentOtpError) {
-      console.error("Rate limit query error:", recentOtpError);
-      return new Response(JSON.stringify({ error: "Failed to process OTP request" }), {
-        status: 500,
-        headers: jsonHeaders,
-      });
-    }
 
     if (recentOtp) {
       const secondsSince = (Date.now() - new Date(recentOtp.created_at).getTime()) / 1000;
@@ -66,36 +59,7 @@ Deno.serve(async (req) => {
     const otp = generateSecureOtp();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    const { error: deleteError } = await supabase
-      .from("otp_verifications")
-      .delete()
-      .eq("email", email);
-
-    if (deleteError) {
-      console.error("Delete old OTP error:", deleteError);
-      return new Response(JSON.stringify({ error: "Failed to refresh OTP" }), {
-        status: 500,
-        headers: jsonHeaders,
-      });
-    }
-
-    const { error: insertError } = await supabase
-      .from("otp_verifications")
-      .insert({
-        email,
-        otp_code: otp,
-        expires_at: expiresAt,
-        verified: false,
-      });
-
-    if (insertError) {
-      console.error("Insert OTP error:", insertError);
-      return new Response(JSON.stringify({ error: "Failed to store OTP" }), {
-        status: 500,
-        headers: jsonHeaders,
-      });
-    }
-
+    // Send email FIRST before storing OTP
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       return new Response(JSON.stringify({ error: "Email provider is not configured" }), {
@@ -132,11 +96,30 @@ Deno.serve(async (req) => {
       console.error("Resend API error:", resendText);
       return new Response(
         JSON.stringify({
-          error: `Email send failed [${resendRes.status}]`,
-          details: resendText,
+          error: "Failed to send verification email. Please try again.",
         }),
         { status: 500, headers: jsonHeaders }
       );
+    }
+
+    // Email sent successfully — now store OTP
+    await supabase.from("otp_verifications").delete().eq("email", email);
+
+    const { error: insertError } = await supabase
+      .from("otp_verifications")
+      .insert({
+        email,
+        otp_code: otp,
+        expires_at: expiresAt,
+        verified: false,
+      });
+
+    if (insertError) {
+      console.error("Insert OTP error:", insertError);
+      return new Response(JSON.stringify({ error: "Failed to store OTP" }), {
+        status: 500,
+        headers: jsonHeaders,
+      });
     }
 
     return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
