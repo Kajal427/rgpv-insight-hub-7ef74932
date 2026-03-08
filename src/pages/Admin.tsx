@@ -163,6 +163,7 @@ const Admin = () => {
                   <tr className="border-b border-[hsl(230,20%,20%)]">
                     <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">#</th>
                     <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Name</th>
+                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Email</th>
                     <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Department</th>
                     <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Phone</th>
                     <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Registered</th>
