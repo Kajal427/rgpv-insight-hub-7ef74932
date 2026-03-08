@@ -148,7 +148,7 @@ class FetchQueue {
         continue;
       }
 
-      const MAX_RETRIES = 5;
+      const MAX_RETRIES = 3;
       let succeeded = false;
       let finalError = "Failed";
       let lastManualFallback: { captchaImage: string; sessionData: any } | null = null;
@@ -204,11 +204,17 @@ class FetchQueue {
           const errMsg = data?.error || error?.message || "Failed";
           finalError = errMsg;
           const isRateLimited = /rate limited/i.test(errMsg);
+          const isCreditsDepleted = /credits depleted/i.test(errMsg);
           const isTransient = isRateLimited || /timed out|unreachable|aborted|connection/i.test(errMsg);
 
+          if (isCreditsDepleted) {
+            this.patch({ error: "AI credits depleted. Please add credits to continue." });
+            break;
+          }
+
           if (isTransient && attempt < MAX_RETRIES - 1) {
-            const waitMs = isRateLimited ? 10000 : 3000;
-            this.patch({ error: `${enrollment}: ${isRateLimited ? "AI is busy" : errMsg}. Retrying in ${Math.ceil(waitMs / 1000)}s...` });
+            const waitMs = isRateLimited ? 15000 : 5000;
+            this.patch({ error: `${enrollment}: ${isRateLimited ? "AI is busy, waiting..." : errMsg}. Retrying in ${Math.ceil(waitMs / 1000)}s...` });
             this.sessionData = null;
             this.captchaImage = null;
             await this.wait(waitMs);
@@ -221,10 +227,10 @@ class FetchQueue {
           const isTransient = /timed out|unreachable|aborted|connection|rate limited/i.test(errMsg);
 
           if (isTransient && attempt < MAX_RETRIES - 1) {
-            this.patch({ error: `${enrollment}: Temporary issue. Retrying in 3s...` });
+            this.patch({ error: `${enrollment}: Temporary issue. Retrying in 5s...` });
             this.sessionData = null;
             this.captchaImage = null;
-            await this.wait(3000);
+            await this.wait(5000);
             continue;
           }
           break;
@@ -294,7 +300,7 @@ class FetchQueue {
 
       // Small delay between students
       if (i < enrollments.length - 1 && !this.aborted) {
-        await this.wait(500);
+        await this.wait(1000);
       }
     }
 

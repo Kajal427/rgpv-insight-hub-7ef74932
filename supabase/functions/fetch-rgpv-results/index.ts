@@ -374,30 +374,36 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 6;
+      const MAX_ATTEMPTS = 12;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 3;
-      const AI_BASE_DELAY_MS = 200;
+      const MAX_RATE_LIMIT_BACKOFFS = 5;
+      const AI_BASE_DELAY_MS = 500;
       const captchaModels = [
         "google/gemini-2.5-flash-lite",
         "google/gemini-2.5-flash",
+        "google/gemini-3-flash-preview",
         "google/gemini-2.5-pro",
       ];
 
-      const CAPTCHA_PROMPT = `Read the text in this CAPTCHA image. The CAPTCHA is from result.rgpv.ac.in (Indian university).
+      const CAPTCHA_PROMPT = `You are a CAPTCHA reader for result.rgpv.ac.in. Read the EXACT text shown in this CAPTCHA image.
 
-Rules:
-- Exactly 5 characters (uppercase letters A-Z and digits 0-9)
-- Ignore all colored lines, noise, and background patterns
-- Focus ONLY on the main text characters
+CRITICAL RULES:
+- The text is EXACTLY 5 characters long
+- Characters are ONLY uppercase letters (A-Z) and digits (0-9)
+- IGNORE all colored lines, noise dots, and background patterns completely
+- Focus ONLY on the large main characters
 
-Common misreads to avoid:
-- 0/O/D/Q can look similar - check curves carefully
-- 1/I/L/7 - check for serifs and angles  
-- 5/S, 8/B, 2/Z, 6/G, 9/Q
-- U/V, W/M
+COMMON CONFUSIONS - Be very careful:
+- O (letter) vs 0 (zero): O is rounder, 0 is narrower
+- I (letter) vs 1 (one): I has serifs, 1 is thin
+- S vs 5: S is curvy, 5 has a flat top
+- B vs 8: B has flat left side, 8 is symmetric
+- Z vs 2: Z has sharp angles, 2 has a curve at bottom
+- G vs 6: G has a horizontal bar, 6 has a closed loop
+- D vs 0: D has flat left, 0 is fully round
+- U vs V: U has a curved bottom, V is pointed
 
-Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
+Reply with ONLY the 5 characters. Nothing else. No quotes, no spaces, no explanation.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
@@ -465,7 +471,7 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
                       ],
                     }],
                     max_tokens: 20,
-                    temperature: 0.1,
+                    temperature: 0.05,
                   }),
                 }, 30000);
 
@@ -475,7 +481,7 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
                     console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
                     break;
                   }
-                  const backoffMs = Math.min(8000, 1000 * (2 ** (rateLimitBackoffs - 1)));
+                  const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
                   console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                   await wait(backoffMs);
                   continue;
