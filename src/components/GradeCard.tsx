@@ -119,6 +119,38 @@ export function GradeCard({ result, program, semester }: GradeCardProps) {
           ))}
         </div>
 
+        {/* Grade Distribution Pie Chart */}
+        {result.subjects.length > 0 && (
+          <div className="px-6 pb-5">
+            <div className="bg-muted/30 rounded-xl p-4 border border-border max-w-sm mx-auto">
+              <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-primary" /> Grade Distribution
+              </h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
+                    {pieData.map((entry, idx) => (
+                      <Cell key={idx} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value: number, name: string) => [`${value} subject(s)`, `Grade ${name}`]}
+                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex flex-wrap justify-center gap-3 mt-2">
+                {pieData.map((d) => (
+                  <div key={d.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                    {d.name} ({d.value})
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Subject Table */}
         {result.subjects.length > 0 && (
           <div className="px-6 pb-6">
