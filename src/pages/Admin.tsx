@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminCheck } from "@/hooks/useAdminCheck";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,6 +46,7 @@ const Admin = () => {
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"overview" | "users" | "activity" | "roles">("overview");
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>();
 
   useEffect(() => {
     if (!adminLoading && !isAdmin) {
@@ -54,6 +54,14 @@ const Admin = () => {
       navigate("/dashboard");
     }
   }, [adminLoading, isAdmin, navigate, toast]);
+
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) setCurrentUserId(session.user.id);
+    };
+    getCurrentUser();
+  }, []);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -89,6 +97,37 @@ const Admin = () => {
     } else {
       toast({ title: "Role removed!" });
       setRoles(roles.filter((r) => r.id !== roleId));
+    }
+  };
+
+  const deleteUser = async (userId: string, userName: string) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({ title: "Error", description: "Not authenticated", variant: "destructive" });
+        return;
+      }
+
+      const response = await supabase.functions.invoke("admin-delete-user", {
+        body: { userId },
+      });
+
+      if (response.error) {
+        toast({ title: "Error", description: response.error.message, variant: "destructive" });
+        return;
+      }
+
+      if (response.data?.error) {
+        toast({ title: "Error", description: response.data.error, variant: "destructive" });
+        return;
+      }
+
+      toast({ title: "User Deleted", description: `${userName}'s account has been permanently deleted.` });
+      setProfiles(profiles.filter((p) => p.user_id !== userId));
+      setRoles(roles.filter((r) => r.user_id !== userId));
+      setActivities(activities.filter((a) => a.user_id !== userId));
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to delete user", variant: "destructive" });
     }
   };
 
@@ -161,14 +200,28 @@ const Admin = () => {
             />
             <div className="grid lg:grid-cols-2 gap-6">
               <AdminActivityTable activities={activities.slice(0, 15)} profiles={profiles} />
-              <AdminUsersTable profiles={profiles.slice(0, 10)} roles={roles} onAddAdmin={addAdminRole} onRemoveRole={removeRole} />
+              <AdminUsersTable
+                profiles={profiles.slice(0, 10)}
+                roles={roles}
+                onAddAdmin={addAdminRole}
+                onRemoveRole={removeRole}
+                onDeleteUser={deleteUser}
+                currentUserId={currentUserId}
+              />
             </div>
           </>
         )}
 
         {/* Users Tab */}
         {tab === "users" && (
-          <AdminUsersTable profiles={profiles} roles={roles} onAddAdmin={addAdminRole} onRemoveRole={removeRole} />
+          <AdminUsersTable
+            profiles={profiles}
+            roles={roles}
+            onAddAdmin={addAdminRole}
+            onRemoveRole={removeRole}
+            onDeleteUser={deleteUser}
+            currentUserId={currentUserId}
+          />
         )}
 
         {/* Activity Tab */}
