@@ -22,6 +22,7 @@ interface GradeCardProps {
   semester: string;
 }
 
+const GRADE_ORDER = ["O", "A+", "A", "B+", "B", "C", "D", "F"];
 const GRADE_COLORS: Record<string, string> = {
   "O": "hsl(142, 71%, 45%)",
   "A+": "hsl(152, 60%, 48%)",
@@ -32,6 +33,19 @@ const GRADE_COLORS: Record<string, string> = {
   "D": "hsl(25, 80%, 55%)",
   "F": "hsl(0, 70%, 55%)",
 };
+
+function getGradeDistribution(subjects: { code: string; grade: string }[]) {
+  const counts: Record<string, number> = {};
+  subjects.forEach((s) => {
+    const g = s.grade.toUpperCase();
+    counts[g] = (counts[g] || 0) + 1;
+  });
+  return GRADE_ORDER.filter((g) => counts[g]).map((g) => ({
+    name: g,
+    value: counts[g],
+    color: GRADE_COLORS[g] || "hsl(230,15%,40%)",
+  }));
+}
 
 function getSgpaColor(sgpa: number) {
   if (sgpa >= 9) return "text-green-400";
