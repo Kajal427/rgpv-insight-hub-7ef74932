@@ -155,22 +155,25 @@ export function GradeCard({ result, program, semester }: GradeCardProps) {
         {result.subjects.length > 0 && (
           <div className="px-6 pb-6">
             <h4 className="text-sm font-semibold text-foreground mb-3">All Subjects</h4>
-            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {result.subjects.map((s, i) => (
-                <div key={i} className="flex items-center justify-between bg-muted/40 rounded-lg px-4 py-2.5 border border-border">
-                  <span className="font-mono text-sm text-muted-foreground">{s.code}</span>
-                  <Badge
-                    className="font-mono text-xs border"
-                    style={{
-                      backgroundColor: `${GRADE_COLORS[s.grade.toUpperCase()] || "hsl(230,15%,40%)"}20`,
-                      color: GRADE_COLORS[s.grade.toUpperCase()] || "hsl(var(--muted-foreground))",
-                      borderColor: `${GRADE_COLORS[s.grade.toUpperCase()] || "hsl(230,15%,40%)"}40`,
-                    }}
-                  >
-                    {s.grade}
-                  </Badge>
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+              {result.subjects.map((s, i) => {
+                const gradeColor = GRADE_COLORS[s.grade.toUpperCase()] || "hsl(230,15%,40%)";
+                return (
+                  <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3 border border-border gap-3">
+                    <span className="font-mono text-sm text-foreground truncate">{s.code}</span>
+                    <span
+                      className="font-mono text-xs font-bold px-2.5 py-1 rounded-md shrink-0"
+                      style={{
+                        backgroundColor: gradeColor.replace(")", ", 0.15)").replace("hsl(", "hsla("),
+                        color: gradeColor,
+                        border: `1px solid ${gradeColor.replace(")", ", 0.3)").replace("hsl(", "hsla(")}`,
+                      }}
+                    >
+                      {s.grade}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
