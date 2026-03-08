@@ -74,13 +74,6 @@ export const ContactSection = () => {
               ))}
             </div>
 
-            <div className="bg-gradient-to-br from-primary/10 to-accent/30 rounded-2xl border border-primary/20 p-6">
-              <p className="font-display font-semibold text-sm text-foreground mb-1">Working Hours</p>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Monday – Friday: 9:00 AM – 6:00 PM<br />
-                Saturday: 10:00 AM – 2:00 PM
-              </p>
-            </div>
           </div>
 
           {/* Contact Form */}

@@ -14,10 +14,6 @@ export const HeroSection = () => {
 
       <div className="container relative z-10 mx-auto px-4 py-32">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-1.5 text-sm text-primary mb-6 animate-fade-in">
-            <TrendingUp className="h-4 w-4" />
-            <span>Smart Exam Analytics for RGPV</span>
-          </div>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl font-bold text-primary-foreground leading-tight mb-6 animate-fade-in-up">
             Analyze & Predict
             <br />
