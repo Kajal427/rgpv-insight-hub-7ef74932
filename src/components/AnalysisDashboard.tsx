@@ -263,6 +263,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                 { label: "Highest SGPA", value: stats.max, icon: Trophy, accent: "bg-amber-500/20" },
                 { label: "Lowest SGPA", value: stats.min, icon: Target, accent: "bg-red-500/20" },
                 { label: "Pass Rate", value: `${stats.passPercent}%`, icon: Zap, accent: "bg-green-500/20" },
+                { label: "Fail Rate", value: `${stats.failPercent}%`, icon: X, accent: "bg-red-500/20" },
                 { label: "Median SGPA", value: stats.median, icon: GraduationCap, accent: "bg-purple-500/20" },
                 ...(stats.hasCgpa ? [
                   { label: "Average CGPA", value: stats.cgpaAvg, icon: TrendingUp, accent: "bg-cyan-500/20" },
