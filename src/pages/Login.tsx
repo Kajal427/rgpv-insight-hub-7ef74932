@@ -32,39 +32,64 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-8">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-[hsl(230,35%,10%)] relative overflow-hidden">
+      {/* Background accents */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,hsl(250,40%,20%)_0%,transparent_60%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,hsl(174,72%,12%)_0%,transparent_50%)]" />
+      
+      {/* Floating shapes */}
+      <div className="absolute top-[10%] right-[15%] w-32 h-32 rounded-full border-[4px] border-[hsl(250,50%,35%)] opacity-20" />
+      <div className="absolute bottom-[20%] left-[10%] w-20 h-20 bg-[hsl(240,50%,30%)] rounded-full opacity-10 blur-xl" />
+      <div className="absolute top-[30%] left-[20%] w-4 h-4 bg-[hsl(200,80%,65%)] rounded-full opacity-30" />
+
+      <div className="w-full max-w-md relative z-10">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-[hsl(230,20%,55%)] hover:text-[hsl(220,60%,65%)] mb-8 transition-colors">
           <ArrowLeft className="h-4 w-4" /> Back to Home
         </Link>
 
-        <div className="bg-card border border-border rounded-xl p-8 card-glow">
+        <div className="bg-[hsl(230,30%,14%)] border border-[hsl(230,20%,20%)] rounded-xl p-8 shadow-[0_20px_60px_-15px_hsl(240,50%,15%,0.5)]">
           <div className="flex items-center gap-2 mb-6">
-            <BarChart3 className="h-6 w-6 text-primary" />
-            <span className="font-display text-lg font-bold">Faculty Login</span>
+            <div className="h-9 w-9 rounded-lg bg-[hsl(240,50%,55%,0.2)] flex items-center justify-center">
+              <BarChart3 className="h-5 w-5 text-[hsl(220,60%,65%)]" />
+            </div>
+            <span className="font-display text-lg font-bold text-white">Faculty Login</span>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label className="text-[hsl(230,15%,55%)]">Email</Label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(230,15%,40%)]" />
+                <Input
+                  className="pl-10 bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,35%)] focus:border-[hsl(240,50%,55%)] focus:ring-[hsl(240,50%,55%)]"
+                  type="email"
+                  placeholder="faculty@rgpv.ac.in"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Password</Label>
+              <Label className="text-[hsl(230,15%,55%)]">Password</Label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" type="password" placeholder="••••••••" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[hsl(230,15%,40%)]" />
+                <Input
+                  className="pl-10 bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,35%)] focus:border-[hsl(240,50%,55%)] focus:ring-[hsl(240,50%,55%)]"
+                  type="password"
+                  placeholder="••••••••"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white" disabled={loading}>
               {loading ? "Logging in..." : "Login"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            <p className="text-center text-sm text-[hsl(230,15%,45%)]">
               Don't have an account?{" "}
-              <Link to="/register" className="text-primary hover:underline">Register</Link>
+              <Link to="/register" className="text-[hsl(220,60%,65%)] hover:underline">Register</Link>
             </p>
           </form>
         </div>
