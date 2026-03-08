@@ -376,6 +376,8 @@ const Dashboard = () => {
                             ? "bg-green-500/10 text-green-500"
                             : r.status === "Skipped"
                             ? "bg-yellow-500/10 text-yellow-500"
+                            : r.status === "Not Found"
+                            ? "bg-orange-500/10 text-orange-500"
                             : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
                             ? "bg-red-500/10 text-red-500"
                             : "bg-muted text-muted-foreground"
