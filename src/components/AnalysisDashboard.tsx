@@ -174,8 +174,8 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
     setShowPrediction(true);
     setPrediction(null);
 
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 5000; // 5 seconds
+    const MAX_RETRIES = 5;
+    const BASE_DELAY = 10000; // 10 seconds base
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -183,29 +183,28 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           body: { results: validResults, program, semester },
         });
 
-        // supabase.functions.invoke puts non-2xx response body in `data` when it can parse JSON
+        const isRateLimit = (msg: string) =>
+          msg.includes("429") || msg.toLowerCase().includes("rate limit");
+
+        // Handle error object from invoke
         if (error) {
           const msg = error.message || "";
-          // Check if the error context contains rate limit info
-          if (msg.includes("429") || msg.includes("Rate limit")) {
-            if (attempt < MAX_RETRIES) {
-              toast({ title: `Rate limited — retrying in ${RETRY_DELAY / 1000}s (attempt ${attempt}/${MAX_RETRIES})...` });
-              await new Promise(r => setTimeout(r, RETRY_DELAY));
-              continue;
-            }
-            throw new Error("Rate limit exceeded. Please wait a minute and try again.");
+          if (isRateLimit(msg) && attempt < MAX_RETRIES) {
+            const delay = BASE_DELAY * attempt; // exponential: 10s, 20s, 30s, 40s
+            toast({ title: `⏳ Rate limited — retrying in ${delay / 1000}s (${attempt}/${MAX_RETRIES})...` });
+            await new Promise(r => setTimeout(r, delay));
+            continue;
           }
           throw error;
         }
 
+        // Handle error in response body
         if (data?.error) {
-          if (data.error.includes("Rate limit") || data.error.includes("429")) {
-            if (attempt < MAX_RETRIES) {
-              toast({ title: `Rate limited — retrying in ${RETRY_DELAY / 1000}s (attempt ${attempt}/${MAX_RETRIES})...` });
-              await new Promise(r => setTimeout(r, RETRY_DELAY));
-              continue;
-            }
-            throw new Error("Rate limit exceeded. Please wait a minute and try again.");
+          if (isRateLimit(data.error) && attempt < MAX_RETRIES) {
+            const delay = BASE_DELAY * attempt;
+            toast({ title: `⏳ Rate limited — retrying in ${delay / 1000}s (${attempt}/${MAX_RETRIES})...` });
+            await new Promise(r => setTimeout(r, delay));
+            continue;
           }
           if (data.error.includes("402") || data.error.includes("credits")) {
             throw new Error("AI credits exhausted. Please add credits to your workspace.");
@@ -215,7 +214,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
         setPrediction(data.prediction);
         setPredicting(false);
-        return; // success, exit
+        return; // success
       } catch (e: any) {
         if (attempt === MAX_RETRIES) {
           toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
