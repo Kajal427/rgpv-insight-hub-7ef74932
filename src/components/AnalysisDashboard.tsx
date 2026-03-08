@@ -143,6 +143,24 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
     }));
   }, [validResults]);
 
+  const cgpaDistribution = useMemo(() => {
+    const buckets: Record<string, number> = { "0-4": 0, "4-5": 0, "5-6": 0, "6-7": 0, "7-8": 0, "8-9": 0, "9-10": 0 };
+    validResults.forEach((r) => {
+      const cgpa = parseFloat(r.cgpa);
+      if (isNaN(cgpa)) return;
+      if (cgpa < 4) buckets["0-4"]++;
+      else if (cgpa < 5) buckets["4-5"]++;
+      else if (cgpa < 6) buckets["5-6"]++;
+      else if (cgpa < 7) buckets["6-7"]++;
+      else if (cgpa < 8) buckets["7-8"]++;
+      else if (cgpa < 9) buckets["8-9"]++;
+      else buckets["9-10"]++;
+    });
+    return Object.entries(buckets).map(([range, count]) => ({ range, count }));
+  }, [validResults]);
+
+  const hasCgpaData = useMemo(() => cgpaDistribution.some(d => d.count > 0), [cgpaDistribution]);
+
   if (validResults.length === 0) return null;
 
   return (
