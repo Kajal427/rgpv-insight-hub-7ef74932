@@ -135,7 +135,7 @@ const Dashboard = () => {
   };
 
   const retryFailed = () => {
-    const failed = results.filter((r) => r.status === "Error" || r.name === "Fetch Failed");
+    const failed = results.filter((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found");
     if (failed.length === 0) return;
     const failedEnrollments = failed.map((r) => r.enrollment);
     const successfulResults = results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed");
@@ -334,9 +334,9 @@ const Dashboard = () => {
                 <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
               <div className="flex gap-2">
-                {results.some((r) => r.status === "Error" || r.name === "Fetch Failed") && !queueState.running && (
+                {results.some((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found") && !queueState.running && (
                   <Button variant="destructive" size="sm" className="gap-2" onClick={retryFailed}>
-                    <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter((r) => r.status === "Error" || r.name === "Fetch Failed").length})
+                    <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found").length})
                   </Button>
                 )}
                 <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
@@ -376,6 +376,8 @@ const Dashboard = () => {
                             ? "bg-green-500/10 text-green-500"
                             : r.status === "Skipped"
                             ? "bg-yellow-500/10 text-yellow-500"
+                            : r.status === "Not Found"
+                            ? "bg-orange-500/10 text-orange-500"
                             : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
                             ? "bg-red-500/10 text-red-500"
                             : "bg-muted text-muted-foreground"
