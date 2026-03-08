@@ -626,6 +626,20 @@ No spaces within each guess, no explanation, no other text.`;
             await wait(200);
           }
 
+        } catch (e) {
+          console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
+          session = null;
+          captcha = null;
+
+          if (attempt === MAX_ATTEMPTS - 1) {
+            return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts: ${e instanceof Error ? e.message : "Unknown"}` }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+          await wait(200);
+        }
+      }
+
       return new Response(JSON.stringify({ 
         success: false, 
         error: `Failed after ${MAX_ATTEMPTS} attempts. AI could not solve the CAPTCHA.`,
