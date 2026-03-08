@@ -10,18 +10,21 @@ export const AboutSection = () => {
               About <span className="text-primary">RGPV Analyzer</span>
             </h2>
             <p className="text-muted-foreground leading-relaxed mb-6">
-              RGPV Analyzer is a comprehensive exam analysis tool designed specifically for Rajiv Gandhi Proudyogiki Vishwavidyalaya (RGPV) faculty members. Our platform simplifies result analysis by automating data collection, visualization, and prediction.
+              RGPV Analyzer is an advanced exam analysis platform designed for faculty members of Rajiv Gandhi Proudyogiki Vishwavidyalaya (RGPV). The tool simplifies the complex process of result evaluation by allowing faculty to upload result data directly from the official RGPV website in CSV format.
+            </p>
+            <p className="text-muted-foreground leading-relaxed mb-6">
+              Once the CSV file is uploaded, the system automatically processes the data, generates detailed results, and performs comprehensive analysis. It transforms raw examination data into meaningful insights through interactive graphs, performance statistics, and predictive analytics.
             </p>
             <p className="text-muted-foreground leading-relaxed">
-              Built by educators for educators, we aim to provide actionable insights that help improve student performance and academic outcomes across all departments.
+              The platform helps educators quickly understand student performance trends, identify strengths and weaknesses in different subjects, and make data-driven decisions to improve academic outcomes.
             </p>
           </div>
 
           <div className="grid gap-6">
             {[
-              { icon: GraduationCap, title: "Built for RGPV", desc: "Tailored specifically for RGPV's grading system and result format." },
-              { icon: Target, title: "Data-Driven Insights", desc: "Transform raw results into meaningful analytics and trends." },
-              { icon: Lightbulb, title: "Predictive Intelligence", desc: "Leverage historical data to forecast future performance." },
+              { icon: GraduationCap, title: "Built for RGPV", desc: "The tool is specially designed to support RGPV's result format and grading system, ensuring accurate and reliable analysis for faculty members." },
+              { icon: Target, title: "Data-Driven Analytics", desc: "The platform converts raw data into clear visual insights using charts and graphs such as subject-wise performance, pass percentage, and comparative analysis." },
+              { icon: Lightbulb, title: "Predictive Intelligence", desc: "By analyzing historical results, the system can help predict future performance trends and highlight areas where students may need additional academic support." },
             ].map((item) => (
               <div key={item.title} className="flex gap-4 p-4 rounded-xl bg-card border border-border">
                 <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
