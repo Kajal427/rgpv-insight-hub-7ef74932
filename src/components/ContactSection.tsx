@@ -37,59 +37,55 @@ export const ContactSection = () => {
   };
 
   return (
-    <section id="contact" className="py-24 bg-secondary/30" ref={sectionRef}>
-      <div className="container mx-auto px-4">
+    <section id="contact" className="py-24 bg-[hsl(230,35%,10%)] relative" ref={sectionRef}>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,hsl(240,40%,15%)_0%,transparent_60%)]" />
+      
+      <div className="container mx-auto px-4 relative z-10">
         <div className={`text-center mb-14 transition-all duration-700 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"}`}>
-          <span className="inline-block text-xs font-semibold tracking-widest uppercase text-primary mb-3">Get In Touch</span>
-          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-3 text-foreground">Contact Us</h2>
-          <p className="text-muted-foreground max-w-md mx-auto text-sm">
+          <span className="inline-block text-xs font-semibold tracking-widest uppercase text-[hsl(220,60%,65%)] mb-3">Get In Touch</span>
+          <h2 className="font-display text-3xl sm:text-4xl font-bold mb-3 text-white">Contact Us</h2>
+          <p className="text-[hsl(230,15%,55%)] max-w-md mx-auto text-sm">
             Have questions about RGPV Analyzer? We'd love to hear from you.
           </p>
         </div>
 
         <div className={`grid lg:grid-cols-5 gap-10 max-w-5xl mx-auto transition-all duration-700 delay-200 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          {/* Contact Info */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-card rounded-2xl border border-border p-6 space-y-5">
+            <div className="bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-5">
               {contactInfo.map((item, i) => (
                 <div
                   key={item.label}
                   className={`flex gap-4 items-start transition-all duration-500 ${visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"}`}
                   style={{ transitionDelay: `${300 + i * 100}ms` }}
                 >
-                  <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                    <item.icon className="h-4 w-4 text-primary" />
+                  <div className="h-10 w-10 rounded-xl bg-[hsl(240,50%,55%,0.15)] flex items-center justify-center shrink-0">
+                    <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)]" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm text-card-foreground">{item.label}</p>
+                    <p className="font-medium text-sm text-white">{item.label}</p>
                     {item.href ? (
-                      <a href={item.href} className="text-muted-foreground text-sm hover:text-primary transition-colors">
+                      <a href={item.href} className="text-[hsl(230,15%,55%)] text-sm hover:text-[hsl(220,60%,65%)] transition-colors">
                         {item.value}
                       </a>
                     ) : (
-                      <p className="text-muted-foreground text-sm">{item.value}</p>
+                      <p className="text-[hsl(230,15%,55%)] text-sm">{item.value}</p>
                     )}
                   </div>
                 </div>
               ))}
             </div>
-
           </div>
 
-          {/* Contact Form */}
-          <form onSubmit={handleSubmit} className="lg:col-span-3 bg-card rounded-2xl border border-border p-6 space-y-4">
+          <form onSubmit={handleSubmit} className="lg:col-span-3 bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
-              <Input placeholder="Your Name" required className="bg-background" />
-              <Input type="email" placeholder="Your Email" required className="bg-background" />
+              <Input placeholder="Your Name" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
+              <Input type="email" placeholder="Your Email" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
             </div>
-            <Input placeholder="Subject" required className="bg-background" />
-            <Textarea placeholder="Your Message" rows={4} required className="bg-background resize-none" />
-            <Button type="submit" className="w-full gap-2" disabled={loading}>
+            <Input placeholder="Subject" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
+            <Textarea placeholder="Your Message" rows={4} required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)] resize-none" />
+            <Button type="submit" className="w-full gap-2 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white" disabled={loading}>
               {loading ? "Sending..." : (
-                <>
-                  Send Message
-                  <Send className="h-4 w-4" />
-                </>
+                <>Send Message <Send className="h-4 w-4" /></>
               )}
             </Button>
           </form>
