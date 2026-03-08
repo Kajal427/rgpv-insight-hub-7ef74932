@@ -174,9 +174,46 @@ export function StudentSearch() {
       </div>
 
       {/* Error */}
-      {error && (
+      {error && !manualFallback && (
         <div className={`${cardClasses} p-6 border-red-500/30`}>
           <p className="text-red-400 text-sm">{error}</p>
+          <Button variant="ghost" size="sm" className="mt-2 gap-2 text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={handleSearch}>
+            <RefreshCw className="h-3.5 w-3.5" /> Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Manual CAPTCHA Fallback */}
+      {manualFallback && (
+        <div className={`${cardClasses} p-6 border-orange-500/30 animate-fade-in`}>
+          <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
+            <Search className="h-4 w-4 text-orange-400" /> Manual CAPTCHA Required
+          </h4>
+          <p className="text-sm text-[hsl(230,15%,50%)] mb-4">AI couldn't solve this CAPTCHA automatically. Please type the characters you see below:</p>
+          <div className="flex items-center gap-4">
+            <img
+              src={manualFallback.captchaImage}
+              alt="CAPTCHA"
+              className="h-14 rounded border border-[hsl(230,20%,20%)] bg-white"
+            />
+            <input
+              type="text"
+              value={manualCaptcha}
+              onChange={(e) => setManualCaptcha(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && handleManualSubmit()}
+              placeholder="Enter CAPTCHA"
+              maxLength={6}
+              className="w-36 rounded-md border border-[hsl(230,20%,20%)] bg-[hsl(230,30%,10%)] px-3 py-2 text-sm text-white font-mono tracking-widest placeholder:text-[hsl(230,15%,35%)] focus:outline-none focus:border-[hsl(240,50%,45%)]"
+            />
+            <Button
+              onClick={handleManualSubmit}
+              disabled={submittingManual || !manualCaptcha.trim()}
+              className="gap-2 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white"
+            >
+              {submittingManual ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              Submit
+            </Button>
+          </div>
         </div>
       )}
 
