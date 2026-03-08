@@ -300,7 +300,7 @@ class FetchQueue {
 
       // Small delay between students
       if (i < enrollments.length - 1 && !this.aborted) {
-        await this.wait(500);
+        await this.wait(1000);
       }
     }
 
