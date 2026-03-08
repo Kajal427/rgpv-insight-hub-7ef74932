@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CaptchaDialog } from "@/components/CaptchaDialog";
+import { CaptchaDialog, ManualCaptchaData } from "@/components/CaptchaDialog";
 import { AnalysisDashboard } from "@/components/AnalysisDashboard";
 import { ActivityHistory, logActivity } from "@/components/ActivityHistory";
 
