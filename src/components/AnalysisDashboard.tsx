@@ -1,12 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line,
 } from "recharts";
-import { TrendingUp, Users, Award, BarChart3, Trophy, Target, Zap, GraduationCap } from "lucide-react";
+import { TrendingUp, Users, Award, BarChart3, Trophy, Target, Zap, GraduationCap, Brain, Loader2, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 type SubjectGrade = { code: string; grade: string };
 export type StudentResult = {
@@ -42,6 +45,11 @@ interface AnalysisDashboardProps {
 }
 
 export function AnalysisDashboard({ results, program, semester }: AnalysisDashboardProps) {
+  const [predicting, setPredicting] = useState(false);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  const [showPrediction, setShowPrediction] = useState(false);
+  const { toast } = useToast();
+
   const validResults = useMemo(
     () => results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed" && r.name !== "Skipped" && r.sgpa !== "N/A"),
     [results]
@@ -161,6 +169,25 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
   const hasCgpaData = useMemo(() => cgpaDistribution.some(d => d.count > 0), [cgpaDistribution]);
 
+  const handlePredict = async () => {
+    setPredicting(true);
+    setShowPrediction(true);
+    setPrediction(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("predict-results", {
+        body: { results: validResults, program, semester },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPrediction(data.prediction);
+    } catch (e: any) {
+      toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
+      setShowPrediction(false);
+    } finally {
+      setPredicting(false);
+    }
+  };
+
   if (validResults.length === 0) return null;
 
   return (
@@ -170,16 +197,27 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
         <div className="relative overflow-hidden rounded-2xl hero-gradient p-8 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
           <div className="relative z-10">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm">
-                <BarChart3 className="h-6 w-6" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-white/10 backdrop-blur-sm">
+                  <BarChart3 className="h-6 w-6" />
+                </div>
+                <div>
+                  <h2 className="font-display text-2xl font-bold">Performance Overview</h2>
+                  <p className="text-white/70 text-sm">
+                    {program && `${program} • `}Semester {semester || "—"} • {stats.total} students analyzed
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="font-display text-2xl font-bold">Performance Overview</h2>
-                <p className="text-white/70 text-sm">
-                  {program && `${program} • `}Semester {semester || "—"} • {stats.total} students analyzed
-                </p>
-              </div>
+              <Button
+                size="sm"
+                onClick={handlePredict}
+                disabled={predicting}
+                className="gap-1.5 bg-white/15 hover:bg-white/25 text-white border border-white/20 backdrop-blur-sm"
+              >
+                {predicting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Brain className="h-3.5 w-3.5" />}
+                AI Predict
+              </Button>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
@@ -414,6 +452,35 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Prediction Modal */}
+      {showPrediction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !predicting && setShowPrediction(false)}>
+          <div className="bg-card border border-border rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <h3 className="font-display font-semibold text-lg text-card-foreground">AI Result Prediction</h3>
+              </div>
+              <button onClick={() => setShowPrediction(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto max-h-[65vh]">
+              {predicting ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground">AI analyzing student data...</p>
+                </div>
+              ) : prediction ? (
+                <div className="prose prose-sm max-w-none text-card-foreground [&_h2]:font-display [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm [&_p]:text-sm [&_p]:text-muted-foreground [&_li]:text-muted-foreground whitespace-pre-wrap">
+                  {prediction}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
