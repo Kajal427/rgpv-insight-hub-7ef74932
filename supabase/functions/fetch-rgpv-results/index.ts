@@ -471,7 +471,7 @@ Reply with ONLY the 5 characters. Nothing else. No quotes, no spaces, no explana
                       ],
                     }],
                     max_tokens: 20,
-                    temperature: 0.1,
+                    temperature: 0.05,
                   }),
                 }, 30000);
 
@@ -481,7 +481,7 @@ Reply with ONLY the 5 characters. Nothing else. No quotes, no spaces, no explana
                     console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
                     break;
                   }
-                  const backoffMs = Math.min(8000, 1000 * (2 ** (rateLimitBackoffs - 1)));
+                  const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
                   console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                   await wait(backoffMs);
                   continue;
