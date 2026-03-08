@@ -76,12 +76,29 @@ export function ActivityHistory() {
     setActivities((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const handleDeleteAll = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.from("activity_log").delete().eq("user_id", session.user.id);
+    setActivities([]);
+  };
+
   if (loading) {
     return (
-      <div className="bg-card border border-border rounded-xl p-6 card-glow">
-        <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
+    <div className="bg-card border border-border rounded-xl p-6 card-glow">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="font-display text-lg font-semibold flex items-center gap-2">
           <Clock className="h-5 w-5 text-primary" /> Activity History
         </h2>
+        {activities.length > 0 && (
+          <button
+            onClick={handleDeleteAll}
+            className="inline-flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 transition-colors"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Clear All
+          </button>
+        )}
+      </div>
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" />
         </div>
