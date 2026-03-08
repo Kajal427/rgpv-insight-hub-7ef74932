@@ -71,6 +71,7 @@ export type Database = {
           department: string
           full_name: string
           id: string
+          is_blocked: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -80,6 +81,7 @@ export type Database = {
           department: string
           full_name: string
           id?: string
+          is_blocked?: boolean
           phone?: string | null
           updated_at?: string
           user_id: string
@@ -89,6 +91,7 @@ export type Database = {
           department?: string
           full_name?: string
           id?: string
+          is_blocked?: boolean
           phone?: string | null
           updated_at?: string
           user_id?: string
@@ -144,6 +147,7 @@ export type Database = {
           department: string
           full_name: string
           id: string
+          is_blocked: boolean
           phone: string | null
           updated_at: string
           user_id: string
@@ -163,6 +167,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          is_blocked: boolean
           last_sign_in_at: string
           phone: string
           updated_at: string

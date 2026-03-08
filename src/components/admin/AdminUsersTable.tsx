@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Users, UserPlus, Trash2, Search, UserX, Loader2 } from "lucide-react";
+import { Users, UserPlus, Trash2, Search, UserX, Loader2, ShieldBan, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ interface Profile {
   created_at: string;
   email: string;
   last_sign_in_at: string | null;
+  is_blocked?: boolean;
 }
 
 interface UserRole {
@@ -36,15 +37,18 @@ interface AdminUsersTableProps {
   onAddAdmin: (userId: string) => void;
   onRemoveRole: (roleId: string) => void;
   onDeleteUser: (userId: string, userName: string) => Promise<void>;
+  onToggleBlock?: (userId: string, blocked: boolean, userName: string) => Promise<void>;
   currentUserId?: string;
 }
 
 const cardClasses = "bg-[hsl(230,30%,14%)] border border-[hsl(230,20%,20%)] rounded-xl shadow-[0_8px_32px_-8px_hsl(240,50%,15%,0.3)]";
 
-export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onDeleteUser, currentUserId }: AdminUsersTableProps) => {
+export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onDeleteUser, onToggleBlock, currentUserId }: AdminUsersTableProps) => {
   const [search, setSearch] = useState("");
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; userId: string; userName: string }>({ open: false, userId: "", userName: "" });
+  const [blockDialog, setBlockDialog] = useState<{ open: boolean; userId: string; userName: string; blocking: boolean }>({ open: false, userId: "", userName: "", blocking: true });
   const [deleting, setDeleting] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   const filtered = profiles.filter((p) =>
     p.full_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -57,6 +61,14 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
     await onDeleteUser(deleteDialog.userId, deleteDialog.userName);
     setDeleting(false);
     setDeleteDialog({ open: false, userId: "", userName: "" });
+  };
+
+  const handleBlockConfirm = async () => {
+    if (!onToggleBlock) return;
+    setBlocking(true);
+    await onToggleBlock(blockDialog.userId, blockDialog.blocking, blockDialog.userName);
+    setBlocking(false);
+    setBlockDialog({ open: false, userId: "", userName: "", blocking: true });
   };
 
   return (
@@ -82,7 +94,7 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[hsl(230,20%,20%)]">
-                {["#", "Name", "Email", "Department", "Phone", "Registered", "Last Login", "Role", "Actions"].map((h) => (
+                {["#", "Name", "Email", "Department", "Phone", "Registered", "Last Login", "Status", "Role", "Actions"].map((h) => (
                   <th key={h} className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium text-xs uppercase tracking-wider">{h}</th>
                 ))}
               </tr>
@@ -91,12 +103,13 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
               {filtered.map((p, i) => {
                 const userRole = roles.find((r) => r.user_id === p.user_id);
                 const isCurrentUser = p.user_id === currentUserId;
+                const isBlocked = p.is_blocked === true;
                 return (
-                  <tr key={p.id} className="border-b border-[hsl(230,20%,16%)] hover:bg-[hsl(240,50%,55%,0.04)] transition-colors">
+                  <tr key={p.id} className={`border-b border-[hsl(230,20%,16%)] hover:bg-[hsl(240,50%,55%,0.04)] transition-colors ${isBlocked ? "opacity-60" : ""}`}>
                     <td className="py-3 px-4 text-[hsl(230,15%,40%)]">{i + 1}</td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-full bg-[hsl(240,50%,55%,0.15)] flex items-center justify-center text-xs font-bold text-[hsl(220,60%,65%)]">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold ${isBlocked ? "bg-red-500/15 text-red-400" : "bg-[hsl(240,50%,55%,0.15)] text-[hsl(220,60%,65%)]"}`}>
                           {p.full_name?.charAt(0)?.toUpperCase() || "?"}
                         </div>
                         <div>
@@ -122,6 +135,15 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
                     </td>
                     <td className="py-3 px-4">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        isBlocked
+                          ? "bg-red-500/15 text-red-400"
+                          : "bg-green-500/15 text-green-400"
+                      }`}>
+                        {isBlocked ? "Blocked" : "Active"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         userRole?.role === "admin"
                           ? "bg-[hsl(38,92%,55%,0.15)] text-[hsl(38,92%,60%)]"
                           : "bg-[hsl(230,20%,18%)] text-[hsl(230,15%,50%)]"
@@ -138,6 +160,17 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
                         ) : (
                           <Button size="sm" variant="ghost" className="gap-1 text-xs text-amber-400 hover:bg-amber-500/10 h-7" onClick={() => onRemoveRole(userRole.id)}>
                             <Trash2 className="h-3 w-3" /> Role
+                          </Button>
+                        )}
+                        {!isCurrentUser && onToggleBlock && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className={`gap-1 text-xs h-7 ${isBlocked ? "text-green-400 hover:bg-green-500/10" : "text-orange-400 hover:bg-orange-500/10"}`}
+                            onClick={() => setBlockDialog({ open: true, userId: p.user_id, userName: p.full_name, blocking: !isBlocked })}
+                          >
+                            {isBlocked ? <ShieldCheck className="h-3 w-3" /> : <ShieldBan className="h-3 w-3" />}
+                            {isBlocked ? "Unblock" : "Block"}
                           </Button>
                         )}
                         {!isCurrentUser && (
@@ -163,6 +196,7 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
         </div>
       </div>
 
+      {/* Delete Dialog */}
       <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog({ ...deleteDialog, open })}>
         <AlertDialogContent className="bg-[hsl(230,30%,12%)] border-[hsl(230,20%,20%)]">
           <AlertDialogHeader>
@@ -185,6 +219,40 @@ export const AdminUsersTable = ({ profiles, roles, onAddAdmin, onRemoveRole, onD
             >
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserX className="h-4 w-4 mr-2" />}
               {deleting ? "Deleting..." : "Delete Account"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Block/Unblock Dialog */}
+      <AlertDialog open={blockDialog.open} onOpenChange={(open) => setBlockDialog({ ...blockDialog, open })}>
+        <AlertDialogContent className="bg-[hsl(230,30%,12%)] border-[hsl(230,20%,20%)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              {blockDialog.blocking ? <ShieldBan className="h-5 w-5 text-orange-400" /> : <ShieldCheck className="h-5 w-5 text-green-400" />}
+              {blockDialog.blocking ? "Block User" : "Unblock User"}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-[hsl(230,15%,50%)]">
+              {blockDialog.blocking
+                ? <>Are you sure you want to block <span className="text-white font-medium">{blockDialog.userName}</span>? They won't be able to access the dashboard until unblocked.</>
+                : <>Are you sure you want to unblock <span className="text-white font-medium">{blockDialog.userName}</span>? They will regain access to the dashboard.</>
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[hsl(230,30%,16%)] border-[hsl(230,20%,22%)] text-[hsl(230,15%,55%)] hover:bg-[hsl(230,30%,20%)] hover:text-white">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBlockConfirm}
+              disabled={blocking}
+              className={blockDialog.blocking
+                ? "bg-orange-500/20 text-orange-400 border border-orange-500/30 hover:bg-orange-500/30"
+                : "bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30"
+              }
+            >
+              {blocking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : (blockDialog.blocking ? <ShieldBan className="h-4 w-4 mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />)}
+              {blocking ? "Processing..." : blockDialog.blocking ? "Block User" : "Unblock User"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

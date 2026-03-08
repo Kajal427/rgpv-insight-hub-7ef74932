@@ -38,8 +38,27 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+
+      // Check if user is blocked
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_blocked")
+        .eq("user_id", signInData.user.id)
+        .single();
+
+      if (profile?.is_blocked) {
+        await supabase.auth.signOut();
+        toast({
+          title: "Account Blocked",
+          description: "Your account has been suspended by an administrator. Contact support for help.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+
       await logActivity("login");
       toast({ title: "Login Successful!" });
       navigate("/dashboard");

@@ -11,6 +11,8 @@ import Dashboard from "./pages/Dashboard";
 import Analysis from "./pages/Analysis";
 import UploadAnalysis from "./pages/UploadAnalysis";
 import Admin from "./pages/Admin";
+import BatchCompare from "./pages/BatchCompare";
+import StudentSearchPage from "./pages/StudentSearchPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +32,8 @@ const App = () => (
           <Route path="/analysis" element={<Analysis />} />
           <Route path="/upload-analysis" element={<UploadAnalysis />} />
           <Route path="/admin" element={<Admin />} />
+          <Route path="/batch-compare" element={<BatchCompare />} />
+          <Route path="/student-search" element={<StudentSearchPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
