@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,40 +72,44 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Send email via Resend API
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY is not configured");
+    // Send email via Gmail SMTP
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPass = Deno.env.get("GMAIL_APP_PASSWORD");
+
+    if (!gmailUser || !gmailPass) {
+      throw new Error("Gmail credentials are not configured");
     }
 
-    const resendRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: {
+          username: gmailUser,
+          password: gmailPass,
+        },
       },
-      body: JSON.stringify({
-        from: "RGPV Result Analyzer <onboarding@resend.dev>",
-        to: [email],
-        subject: "Your OTP for Registration",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb;">
-            <h2 style="color: #1a1a2e; margin-bottom: 8px;">Email Verification</h2>
-            <p style="color: #6b7280; font-size: 14px;">Use the code below to verify your email for faculty registration:</p>
-            <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e;">${otp}</span>
-            </div>
-            <p style="color: #6b7280; font-size: 12px;">This code expires in 5 minutes. If you didn't request this, please ignore this email.</p>
-          </div>
-        `,
-      }),
     });
 
-    if (!resendRes.ok) {
-      const resendError = await resendRes.json();
-      console.error("Resend API error:", resendError);
-      throw new Error(`Resend API failed [${resendRes.status}]: ${JSON.stringify(resendError)}`);
-    }
+    await client.send({
+      from: gmailUser,
+      to: email,
+      subject: "Your OTP for Faculty Registration",
+      content: "auto",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb;">
+          <h2 style="color: #1a1a2e; margin-bottom: 8px;">Email Verification</h2>
+          <p style="color: #6b7280; font-size: 14px;">Use the code below to verify your email for faculty registration:</p>
+          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e;">${otp}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 12px;">This code expires in 5 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
+
+    await client.close();
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
