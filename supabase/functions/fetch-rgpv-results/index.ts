@@ -441,8 +441,8 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
             lastKnownSession = session;
           }
 
-          // Step 2: AI solve captcha — multi-guess approach
-          let guesses: string[] = [];
+          // Step 2: AI solve captcha — try models in order, single best guess
+          let guess = "";
           let lastAiError = "";
 
           for (const model of captchaModels) {
@@ -451,64 +451,73 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
             while (rateLimitBackoffs <= MAX_RATE_LIMIT_BACKOFFS) {
               await wait(AI_BASE_DELAY_MS);
 
-              const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  model,
-                  messages: [{
-                    role: "user",
-                    content: [
-                      { type: "image_url", image_url: { url: captcha } },
-                      { type: "text", text: CAPTCHA_PROMPT },
-                    ],
-                  }],
-                  max_tokens: 50,
-                  temperature: 0.2,
-                }),
-              }, 30000);
+              try {
+                const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                  method: "POST",
+                  headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    model,
+                    messages: [{
+                      role: "user",
+                      content: [
+                        { type: "image_url", image_url: { url: captcha } },
+                        { type: "text", text: CAPTCHA_PROMPT },
+                      ],
+                    }],
+                    max_tokens: 20,
+                    temperature: 0.1,
+                  }),
+                }, 30000);
 
-              if (aiResp.status === 429) {
-                rateLimitBackoffs += 1;
-                const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
-                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
-                await wait(backoffMs);
-                continue;
-              }
+                if (aiResp.status === 429) {
+                  rateLimitBackoffs += 1;
+                  if (rateLimitBackoffs > MAX_RATE_LIMIT_BACKOFFS) {
+                    console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
+                    break;
+                  }
+                  const backoffMs = Math.min(20000, 2000 * (2 ** (rateLimitBackoffs - 1)));
+                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
+                  await wait(backoffMs);
+                  continue;
+                }
 
-              if (aiResp.status === 402) {
-                return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-              }
+                if (aiResp.status === 402) {
+                  return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
+                    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                }
 
-              if (!aiResp.ok) {
-                lastAiError = `AI request failed (${aiResp.status})`;
+                if (!aiResp.ok) {
+                  lastAiError = `AI request failed (${aiResp.status})`;
+                  break;
+                }
+
+                const aiData = await aiResp.json();
+                const rawText = extractAiText(aiData).trim();
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
+
+                // Extract the single best guess - take first word-like token of 4-7 alphanumeric chars
+                const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9\s,]/g, "").trim();
+                const tokens = cleaned.split(/[\s,]+/).filter((t: string) => t.length >= 4 && t.length <= 7);
+                
+                if (tokens.length > 0) {
+                  guess = tokens[0];
+                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}"`);
+                }
+                break;
+              } catch (e) {
+                lastAiError = `AI error: ${e}`;
                 break;
               }
-
-              const aiData = await aiResp.json();
-              const rawText = extractAiText(aiData);
-              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
-
-              // Parse multiple guesses from comma-separated response
-              const parts = rawText.split(/[,\s]+/).map((p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, "")).filter((p: string) => p.length >= 4 && p.length <= 8);
-              
-              if (parts.length > 0) {
-                guesses = parts.slice(0, 3); // Take up to 3 guesses
-                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guesses=[${guesses.join(", ")}]`);
-              }
-              break;
             }
 
-            if (guesses.length > 0) break;
+            if (guess) break;
           }
 
-          if (guesses.length === 0) {
-            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guesses. ${lastAiError}`);
-            // Get fresh CAPTCHA for next attempt
+          if (!guess) {
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guess. ${lastAiError}`);
             session = null;
             captcha = null;
-            await wait(200);
+            await wait(500);
             continue;
           }
 
