@@ -17,6 +17,8 @@ interface Profile {
   department: string;
   phone: string | null;
   created_at: string;
+  email: string;
+  last_sign_in_at: string | null;
 }
 
 interface ActivityLog {
@@ -56,7 +58,7 @@ const Admin = () => {
     const load = async () => {
       setLoading(true);
       const [profilesRes, activityRes, rolesRes] = await Promise.all([
-        supabase.rpc("admin_get_all_profiles"),
+        supabase.rpc("admin_get_all_profiles_with_email"),
         supabase.rpc("admin_get_all_activity"),
         supabase.from("user_roles").select("*"),
       ]);
