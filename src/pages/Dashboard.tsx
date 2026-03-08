@@ -53,7 +53,8 @@ const Dashboard = () => {
   const abortRef = useRef(false);
   const sessionRef = useRef<SessionData | null>(null);
   const captchaRef = useRef<string | null>(null);
-
+  const [manualCaptcha, setManualCaptcha] = useState<ManualCaptchaData | null>(null);
+  const manualResolveRef = useRef<((value: { action: "submit"; text: string } | { action: "skip" }) => void) | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
