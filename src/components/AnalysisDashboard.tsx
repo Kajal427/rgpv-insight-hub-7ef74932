@@ -91,14 +91,22 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
   const stats = useMemo(() => {
     if (validResults.length === 0) return null;
     const sgpas = validResults.map((r) => parseFloat(r.sgpa)).filter((n) => !isNaN(n));
+    const cgpas = validResults.map((r) => parseFloat(r.cgpa)).filter((n) => !isNaN(n));
     const avg = sgpas.reduce((a, b) => a + b, 0) / sgpas.length;
     const passCount = passFailData[0].value;
     const median = [...sgpas].sort((a, b) => a - b)[Math.floor(sgpas.length / 2)];
+    const cgpaAvg = cgpas.length > 0 ? cgpas.reduce((a, b) => a + b, 0) / cgpas.length : null;
+    const cgpaMax = cgpas.length > 0 ? Math.max(...cgpas) : null;
+    const cgpaMin = cgpas.length > 0 ? Math.min(...cgpas) : null;
     return {
       avg: avg.toFixed(2), max: Math.max(...sgpas).toFixed(2), min: Math.min(...sgpas).toFixed(2),
       median: median.toFixed(2), total: validResults.length,
       passPercent: ((passCount / validResults.length) * 100).toFixed(1),
       failPercent: (((validResults.length - passCount) / validResults.length) * 100).toFixed(1),
+      cgpaAvg: cgpaAvg?.toFixed(2) ?? "N/A",
+      cgpaMax: cgpaMax?.toFixed(2) ?? "N/A",
+      cgpaMin: cgpaMin?.toFixed(2) ?? "N/A",
+      hasCgpa: cgpas.length > 0,
     };
   }, [validResults, passFailData]);
 
