@@ -328,6 +328,37 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
             </CardContent>
           </Card>
         )}
+
+        {/* CGPA Distribution */}
+        {hasCgpaData && (
+          <Card className="card-glow border-border/50 overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-cyan-500" />
+                CGPA Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cgpaDistribution} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
+                    <XAxis dataKey="range" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <defs>
+                      <linearGradient id="cgpaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(200, 80%, 50%)" />
+                        <stop offset="100%" stopColor="hsl(200, 80%, 30%)" />
+                      </linearGradient>
+                    </defs>
+                    <Bar dataKey="count" fill="url(#cgpaGradient)" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )
       </div>
 
       {/* Subject-wise Grade Distribution - Full Width */}
