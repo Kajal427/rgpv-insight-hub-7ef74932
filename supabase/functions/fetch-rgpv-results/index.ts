@@ -492,13 +492,14 @@ Output ONLY the 5 characters with no other text.`;
                 const rawText = extractAiText(aiData).trim();
                 console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
 
-                // Extract the single best guess - take first word-like token of 4-7 alphanumeric chars
-                const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9\s,]/g, "").trim();
-                const tokens = cleaned.split(/[\s,]+/).filter((t: string) => t.length >= 4 && t.length <= 7);
-                
-                if (tokens.length > 0) {
-                  guess = tokens[0];
+                // Extract guess: strip everything except A-Z 0-9, take first 5-char block
+                const allChars = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                if (allChars.length >= 5) {
+                  guess = allChars.substring(0, 5);
                   console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}"`);
+                } else if (allChars.length >= 4) {
+                  guess = allChars;
+                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}" (short)`);
                 }
                 break;
               } catch (e) {
