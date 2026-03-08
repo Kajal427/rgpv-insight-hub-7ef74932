@@ -1,11 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BarChart3, ArrowLeft, Mail, Lock, User, Check, X } from "lucide-react";
+import { BarChart3, ArrowLeft, Mail, Lock, User, Check, X, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import {
   Select,
   SelectContent,
@@ -41,6 +46,12 @@ const Register = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpValue, setOtpValue] = useState("");
+  const [cooldown, setCooldown] = useState(0);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -57,8 +68,69 @@ const Register = () => {
 
   const allPasswordRulesPassed = passwordStrength.every((r) => r.passed);
 
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  // Reset OTP state when email changes
+  useEffect(() => {
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpValue("");
+  }, [formData.email]);
+
+  const handleSendOtp = async () => {
+    if (!formData.email) {
+      toast({ title: "Email Required", description: "Please enter your email first.", variant: "destructive" });
+      return;
+    }
+    setOtpSending(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-otp", {
+        body: { email: formData.email },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setOtpSent(true);
+      setCooldown(60);
+      toast({ title: "OTP Sent!", description: "Check your email for the 6-digit code." });
+    } catch (err: any) {
+      toast({ title: "Failed to send OTP", description: err.message, variant: "destructive" });
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpValue.length !== 6) {
+      toast({ title: "Invalid OTP", description: "Please enter the full 6-digit code.", variant: "destructive" });
+      return;
+    }
+    setOtpVerifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("verify-otp", {
+        body: { email: formData.email, otp: otpValue },
+      });
+      if (error) throw error;
+      if (!data?.verified) throw new Error(data?.error || "Invalid or expired OTP");
+      setOtpVerified(true);
+      toast({ title: "Email Verified!", description: "You can now complete registration." });
+    } catch (err: any) {
+      toast({ title: "Verification Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!otpVerified) {
+      toast({ title: "Email Not Verified", description: "Please verify your email with OTP first.", variant: "destructive" });
+      return;
+    }
     if (!allPasswordRulesPassed) {
       toast({ title: "Weak Password", description: "Please meet all password requirements.", variant: "destructive" });
       return;
@@ -113,11 +185,64 @@ const Register = () => {
 
             <div className="space-y-2">
               <Label>Email</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-10" type="email" placeholder="faculty@rgpv.ac.in" required value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-10"
+                    type="email"
+                    placeholder="faculty@rgpv.ac.in"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    disabled={otpVerified}
+                  />
+                </div>
+                {!otpVerified && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 h-10"
+                    onClick={handleSendOtp}
+                    disabled={otpSending || !formData.email || cooldown > 0}
+                  >
+                    {otpSending ? "Sending..." : cooldown > 0 ? `Resend (${cooldown}s)` : otpSent ? "Resend OTP" : "Send OTP"}
+                  </Button>
+                )}
+                {otpVerified && (
+                  <div className="flex items-center h-10 px-3 rounded-md bg-green-500/10 text-green-500 text-sm font-medium gap-1">
+                    <ShieldCheck className="h-4 w-4" /> Verified
+                  </div>
+                )}
               </div>
             </div>
+
+            {otpSent && !otpVerified && (
+              <div className="space-y-2 p-4 rounded-lg border border-border bg-muted/30">
+                <Label className="text-sm">Enter 6-digit OTP sent to your email</Label>
+                <div className="flex items-center gap-3">
+                  <InputOTP maxLength={6} value={otpValue} onChange={setOtpValue}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleVerifyOtp}
+                    disabled={otpVerifying || otpValue.length !== 6}
+                  >
+                    {otpVerifying ? "Verifying..." : "Verify"}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Department</Label>
@@ -158,7 +283,7 @@ const Register = () => {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading || !allPasswordRulesPassed}>
+            <Button type="submit" className="w-full" disabled={loading || !allPasswordRulesPassed || !otpVerified}>
               {loading ? "Registering..." : "Register"}
             </Button>
             <p className="text-center text-sm text-muted-foreground">
