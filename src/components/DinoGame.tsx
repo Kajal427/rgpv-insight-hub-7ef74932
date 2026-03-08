@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Bird } from "lucide-react";
 
 const CANVAS_W = 600;
