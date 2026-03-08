@@ -374,18 +374,38 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 10;
+      const MAX_ATTEMPTS = 6;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 4;
-      const AI_BASE_DELAY_MS = 300;
+      const MAX_RATE_LIMIT_BACKOFFS = 3;
+      const AI_BASE_DELAY_MS = 200;
       const captchaModels = [
+        "google/gemini-3-flash-preview",
         "google/gemini-2.5-flash",
-        "google/gemini-2.5-pro",
       ];
+
+      const CAPTCHA_PROMPT = `You are reading a CAPTCHA image from an Indian university (RGPV) result portal.
+
+CAPTCHA characteristics:
+- Contains exactly 5-6 alphanumeric characters (mix of uppercase letters and digits)
+- Has colored noise lines drawn across the text
+- Characters use a slightly distorted sans-serif font
+- Background may have light patterns or gradients
+
+Your task: Return your TOP 3 best guesses for the CAPTCHA text, separated by commas.
+Each guess should be 5-6 uppercase letters and digits only.
+
+Common confusions to watch for:
+- 0 (zero) vs O (letter O) vs D
+- 1 (one) vs I (letter I) vs L vs 7
+- 5 vs S, 8 vs B, 2 vs Z
+- 6 vs G, 9 vs Q
+- U vs V, W vs M (when rotated)
+
+Return ONLY three guesses separated by commas. Example: ABC123, A8C1Z3, ABC1Z3
+No spaces within each guess, no explanation, no other text.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
-      // Preserve last known captcha/session for manual fallback
       let lastKnownCaptcha: string | null = existingCaptcha || null;
       let lastKnownSession: typeof session = existingSession || null;
 
@@ -426,8 +446,8 @@ Deno.serve(async (req) => {
             lastKnownSession = session;
           }
 
-          // Step 2: AI solve captcha (fallback models)
-          let answer = "";
+          // Step 2: AI solve captcha — multi-guess approach
+          let guesses: string[] = [];
           let lastAiError = "";
 
           for (const model of captchaModels) {
@@ -445,17 +465,17 @@ Deno.serve(async (req) => {
                     role: "user",
                     content: [
                       { type: "image_url", image_url: { url: captcha } },
-                      { type: "text", text: "This is a CAPTCHA image containing 4-6 alphanumeric characters (uppercase letters and digits). Read the characters carefully. Common confusions: 0 vs O, 1 vs I vs L, 5 vs S, 8 vs B, 2 vs Z. Return ONLY the exact characters you see, uppercase letters and digits only. No spaces, no punctuation, no explanation." },
+                      { type: "text", text: CAPTCHA_PROMPT },
                     ],
                   }],
-                  max_tokens: 16,
-                  temperature: 0,
+                  max_tokens: 50,
+                  temperature: 0.2,
                 }),
               }, 30000);
 
               if (aiResp.status === 429) {
                 rateLimitBackoffs += 1;
-                const backoffMs = Math.min(20000, 3000 * (2 ** (rateLimitBackoffs - 1)));
+                const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
                 console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                 await wait(backoffMs);
                 continue;
@@ -473,123 +493,138 @@ Deno.serve(async (req) => {
 
               const aiData = await aiResp.json();
               const rawText = extractAiText(aiData);
-              const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
 
-              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}", cleaned="${cleaned}"`);
-
-              if (cleaned.length >= 4 && cleaned.length <= 8) {
-                answer = cleaned;
+              // Parse multiple guesses from comma-separated response
+              const parts = rawText.split(/[,\s]+/).map((p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, "")).filter((p: string) => p.length >= 4 && p.length <= 8);
+              
+              if (parts.length > 0) {
+                guesses = parts.slice(0, 3); // Take up to 3 guesses
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guesses=[${guesses.join(", ")}]`);
               }
               break;
             }
 
-            if (answer) break;
+            if (guesses.length > 0) break;
           }
 
-          if (!answer) {
-            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI answer. ${lastAiError}`);
+          if (guesses.length === 0) {
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guesses. ${lastAiError}`);
+            // Get fresh CAPTCHA for next attempt
             session = null;
             captcha = null;
-            await wait(300);
+            await wait(200);
             continue;
           }
 
-          // Step 3: Submit
-          const submitBody = new URLSearchParams();
-          submitBody.set("__VIEWSTATE", session.formFields.__VIEWSTATE || "");
-          submitBody.set("__VIEWSTATEGENERATOR", session.formFields.__VIEWSTATEGENERATOR || "");
-          submitBody.set("__EVENTVALIDATION", session.formFields.__EVENTVALIDATION || "");
-          submitBody.set("__EVENTTARGET", "");
-          submitBody.set("__EVENTARGUMENT", "");
-          submitBody.set("ctl00$ContentPlaceHolder1$txtrollno", enrollment);
-          submitBody.set("ctl00$ContentPlaceHolder1$drpSemester", semester);
-          submitBody.set("ctl00$ContentPlaceHolder1$TextBox1", answer);
-          submitBody.set("ctl00$ContentPlaceHolder1$btnviewresult", "View Result");
+          // Step 3: Try each guess sequentially
+          let succeeded = false;
+          for (let gi = 0; gi < guesses.length; gi++) {
+            const guess = guesses[gi];
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: trying guess ${gi + 1}/${guesses.length}: "${guess}"`);
 
-          const step3 = await fetchWithCookies(session.resultPageUrl, {
-            method: "POST",
-            headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": session.resultPageUrl },
-            body: submitBody.toString(),
-          }, session.cookies);
+            const submitBody = new URLSearchParams();
+            submitBody.set("__VIEWSTATE", session!.formFields.__VIEWSTATE || "");
+            submitBody.set("__VIEWSTATEGENERATOR", session!.formFields.__VIEWSTATEGENERATOR || "");
+            submitBody.set("__EVENTVALIDATION", session!.formFields.__EVENTVALIDATION || "");
+            submitBody.set("__EVENTTARGET", "");
+            submitBody.set("__EVENTARGUMENT", "");
+            submitBody.set("ctl00$ContentPlaceHolder1$txtrollno", enrollment);
+            submitBody.set("ctl00$ContentPlaceHolder1$drpSemester", semester);
+            submitBody.set("ctl00$ContentPlaceHolder1$TextBox1", guess);
+            submitBody.set("ctl00$ContentPlaceHolder1$btnviewresult", "View Result");
 
-          const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
-          if (alertMatch) {
-            const alertText = alertMatch[1].toLowerCase();
+            const step3 = await fetchWithCookies(session!.resultPageUrl, {
+              method: "POST",
+              headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": session!.resultPageUrl },
+              body: submitBody.toString(),
+            }, session!.cookies);
 
-            // Retry on captcha/wrong-text errors by using refreshed captcha from same page when possible
-            if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
-              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: wrong captcha ("${alertMatch[1]}"), retrying...`);
+            const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (alertMatch) {
+              const alertText = alertMatch[1].toLowerCase();
 
-              const retryFields = extractFormFields(step3.html);
-              const retryCaptchaUrl = extractCaptchaUrl(step3.html);
+              if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess "${guess}" wrong captcha`);
 
-              if (retryCaptchaUrl) {
+                // Update session from response for next guess
+                const retryFields = extractFormFields(step3.html);
+                const retryCaptchaUrl = extractCaptchaUrl(step3.html);
+
+                if (retryCaptchaUrl) {
+                  try {
+                    const retryImgResp = await fetchWithTimeout(retryCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
+                    const retryImgBuf = await retryImgResp.arrayBuffer();
+                    const retryB64 = btoa(String.fromCharCode(...new Uint8Array(retryImgBuf)));
+                    const retryMime = retryImgResp.headers.get("content-type") || "image/png";
+                    captcha = `data:${retryMime};base64,${retryB64}`;
+                    session = {
+                      cookies: step3.cookies,
+                      formFields: Object.keys(retryFields).length > 0 ? retryFields : session!.formFields,
+                      resultPageUrl: step3.finalUrl,
+                    };
+                    lastKnownCaptcha = captcha;
+                    lastKnownSession = session;
+                  } catch {
+                    session = null;
+                    captcha = null;
+                  }
+                } else {
+                  session = null;
+                  captcha = null;
+                }
+                // Continue to next guess only if we DON'T have a new captcha (same session still valid for remaining guesses is unlikely after wrong captcha)
+                // Actually after wrong captcha, the server gives a NEW captcha, so remaining guesses from AI won't match — break and get fresh guesses
+                break;
+              }
+
+              // Non-captcha error (e.g. enrollment not found)
+              return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            const parsed = parseResultHtml(step3.html, enrollment);
+            if (parsed) {
+              console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
+
+              // Get next session for chaining
+              const newFields = extractFormFields(step3.html);
+              const newCaptchaUrl = extractCaptchaUrl(step3.html);
+              let nextSession: { captchaImage: string; sessionData: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } } | null = null;
+
+              if (newCaptchaUrl) {
                 try {
-                  const retryImgResp = await fetchWithTimeout(retryCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
-                  const retryImgBuf = await retryImgResp.arrayBuffer();
-                  const retryB64 = btoa(String.fromCharCode(...new Uint8Array(retryImgBuf)));
-                  const retryMime = retryImgResp.headers.get("content-type") || "image/png";
-                  captcha = `data:${retryMime};base64,${retryB64}`;
-                  session = {
-                    cookies: step3.cookies,
-                    formFields: Object.keys(retryFields).length > 0 ? retryFields : session.formFields,
-                    resultPageUrl: step3.finalUrl,
+                  const imgResp2 = await fetchWithTimeout(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
+                  const imgBuf2 = await imgResp2.arrayBuffer();
+                  const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
+                  const mime2 = imgResp2.headers.get("content-type") || "image/png";
+                  nextSession = {
+                    captchaImage: `data:${mime2};base64,${b642}`,
+                    sessionData: {
+                      cookies: step3.cookies,
+                      formFields: Object.keys(newFields).length > 0 ? newFields : session!.formFields,
+                      resultPageUrl: step3.finalUrl,
+                    },
                   };
-                  lastKnownCaptcha = captcha;
-                  lastKnownSession = session;
-                  await wait(300);
-                  continue;
-                } catch {
-                  // fallback to full re-init below
+                } catch (_) {
+                  // no-op
                 }
               }
 
-              session = null;
-              captcha = null;
-              await wait(300);
-              continue;
+              return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
-
-            return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            
+            // Parse failed but no alert — might be a page issue, break and retry
+            session = null;
+            captcha = null;
+            break;
           }
 
-          const parsed = parseResultHtml(step3.html, enrollment);
-          if (parsed) {
-            console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
-
-            // Get next session for chaining
-            const newFields = extractFormFields(step3.html);
-            const newCaptchaUrl = extractCaptchaUrl(step3.html);
-            let nextSession: { captchaImage: string; sessionData: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } } | null = null;
-
-            if (newCaptchaUrl) {
-              try {
-                const imgResp2 = await fetchWithTimeout(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
-                const imgBuf2 = await imgResp2.arrayBuffer();
-                const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
-                const mime2 = imgResp2.headers.get("content-type") || "image/png";
-                nextSession = {
-                  captchaImage: `data:${mime2};base64,${b642}`,
-                  sessionData: {
-                    cookies: step3.cookies,
-                    formFields: Object.keys(newFields).length > 0 ? newFields : session.formFields,
-                    resultPageUrl: step3.finalUrl,
-                  },
-                };
-              } catch (_) {
-                // no-op
-              }
-            }
-
-            return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          // If none of the guesses worked, loop continues to next attempt with fresh captcha
+          if (!session) {
+            await wait(200);
           }
-
-          // If parse failed, refresh and retry instead of failing immediately
-          session = null;
-          captcha = null;
-          await wait(300);
 
         } catch (e) {
           console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
@@ -601,7 +636,7 @@ Deno.serve(async (req) => {
               { headers: { ...corsHeaders, "Content-Type": "application/json" } });
           }
 
-          await wait(300);
+          await wait(200);
         }
       }
 
