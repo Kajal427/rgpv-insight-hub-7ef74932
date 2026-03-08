@@ -4,7 +4,7 @@ import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download, FileUp, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download, FileUp, Eye, EyeOff, RefreshCw, GitCompareArrows, Search } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -260,42 +260,68 @@ const Dashboard = () => {
         )}
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <Link to="/upload-analysis" className="block">
-            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[hsl(240,50%,55%,0.15)] group-hover:bg-[hsl(240,50%,55%,0.25)] transition-colors">
-                  <FileUp className="h-6 w-6 text-[hsl(220,60%,65%)]" />
+            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[hsl(240,50%,55%,0.15)] group-hover:bg-[hsl(240,50%,55%,0.25)] transition-colors">
+                  <FileUp className="h-5 w-5 text-[hsl(220,60%,65%)]" />
                 </div>
                 <div>
-                  <h3 className="font-display font-semibold text-white">Upload & Analyze Excel</h3>
-                  <p className="text-sm text-[hsl(230,15%,50%)]">Upload exported result sheet for analysis</p>
+                  <h3 className="font-display font-semibold text-white text-sm">Upload & Analyze</h3>
+                  <p className="text-xs text-[hsl(230,15%,50%)]">Upload result sheet</p>
                 </div>
               </div>
             </div>
           </Link>
           <Link to="/analysis" className="block">
-            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[hsl(174,60%,30%,0.15)] group-hover:bg-[hsl(174,60%,30%,0.25)] transition-colors">
-                  <BarChart3 className="h-6 w-6 text-[hsl(174,72%,50%)]" />
+            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[hsl(174,60%,30%,0.15)] group-hover:bg-[hsl(174,60%,30%,0.25)] transition-colors">
+                  <BarChart3 className="h-5 w-5 text-[hsl(174,72%,50%)]" />
                 </div>
                 <div>
-                  <h3 className="font-display font-semibold text-white">View Latest Analysis</h3>
-                  <p className="text-sm text-[hsl(230,15%,50%)]">Charts & insights from last fetch</p>
+                  <h3 className="font-display font-semibold text-white text-sm">View Analysis</h3>
+                  <p className="text-xs text-[hsl(230,15%,50%)]">Charts & insights</p>
                 </div>
               </div>
             </div>
           </Link>
           <Link to="/upload-analysis?direct=true" className="block">
-            <div className={`${cardClasses} p-6 hover:border-[hsl(38,92%,50%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-[hsl(38,92%,50%,0.15)] group-hover:bg-[hsl(38,92%,50%,0.25)] transition-colors">
-                  <FileSpreadsheet className="h-6 w-6 text-[hsl(38,92%,55%)]" />
+            <div className={`${cardClasses} p-5 hover:border-[hsl(38,92%,50%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[hsl(38,92%,50%,0.15)] group-hover:bg-[hsl(38,92%,50%,0.25)] transition-colors">
+                  <FileSpreadsheet className="h-5 w-5 text-[hsl(38,92%,55%)]" />
                 </div>
                 <div>
-                  <h3 className="font-display font-semibold text-white">Quick Excel Analysis</h3>
-                  <p className="text-sm text-[hsl(230,15%,50%)]">Drop any exported Excel for instant report</p>
+                  <h3 className="font-display font-semibold text-white text-sm">Quick Excel</h3>
+                  <p className="text-xs text-[hsl(230,15%,50%)]">Instant report</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link to="/batch-compare" className="block">
+            <div className={`${cardClasses} p-5 hover:border-[hsl(280,67%,55%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[hsl(280,67%,55%,0.15)] group-hover:bg-[hsl(280,67%,55%,0.25)] transition-colors">
+                  <GitCompareArrows className="h-5 w-5 text-[hsl(280,67%,55%)]" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-white text-sm">Batch Compare</h3>
+                  <p className="text-xs text-[hsl(230,15%,50%)]">Side-by-side</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link to="/student-search" className="block">
+            <div className={`${cardClasses} p-5 hover:border-[hsl(174,72%,50%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-[hsl(174,72%,50%,0.15)] group-hover:bg-[hsl(174,72%,50%,0.25)] transition-colors">
+                  <Search className="h-5 w-5 text-[hsl(174,72%,50%)]" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-white text-sm">Student Search</h3>
+                  <p className="text-xs text-[hsl(230,15%,50%)]">By enrollment</p>
                 </div>
               </div>
             </div>
