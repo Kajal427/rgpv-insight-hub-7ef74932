@@ -530,25 +530,65 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
       {/* AI Prediction Modal */}
       {showPrediction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !predicting && setShowPrediction(false)}>
-          <div className="bg-card border border-border rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-5 border-b border-border">
+          <div className="bg-card border border-border rounded-2xl shadow-xl max-w-3xl w-full max-h-[85vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border bg-secondary/30">
               <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-primary" />
-                <h3 className="font-display font-semibold text-lg text-card-foreground">AI Result Prediction</h3>
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Brain className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-lg text-card-foreground">AI Result Prediction</h3>
+                  <p className="text-xs text-muted-foreground">{program && `${program} • `}Semester {semester || "—"}</p>
+                </div>
               </div>
-              <button onClick={() => setShowPrediction(false)} className="text-muted-foreground hover:text-foreground transition-colors">
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {prediction && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-xs"
+                    onClick={() => {
+                      const blob = new Blob([prediction], { type: "text/markdown" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `AI_Prediction_${program || "RGPV"}_Sem${semester || ""}.md`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" /> Download
+                  </Button>
+                )}
+                <button onClick={() => setShowPrediction(false)} className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-secondary">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-            <div className="p-5 overflow-y-auto max-h-[65vh]">
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
               {predicting ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-3">
-                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                  <p className="text-sm text-muted-foreground">AI analyzing student data...</p>
+                <div className="flex flex-col items-center justify-center py-16 gap-4">
+                  <div className="relative">
+                    <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                    <div className="relative p-4 rounded-full bg-primary/10">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-foreground">Analyzing student data...</p>
+                    <p className="text-xs text-muted-foreground mt-1">This may take a few seconds</p>
+                  </div>
                 </div>
               ) : prediction ? (
-                <div className="prose prose-sm max-w-none text-card-foreground [&_h2]:font-display [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm [&_p]:text-sm [&_p]:text-muted-foreground [&_li]:text-muted-foreground whitespace-pre-wrap">
-                  {prediction}
+                <div className="prose prose-sm max-w-none dark:prose-invert
+                  [&_h2]:font-display [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:pb-2 [&_h2]:border-b [&_h2]:border-border [&_h2]:text-foreground
+                  [&_h3]:font-display [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-foreground
+                  [&_strong]:text-foreground [&_strong]:font-semibold
+                  [&_li]:text-sm [&_li]:text-muted-foreground [&_li]:leading-relaxed
+                  [&_p]:text-sm [&_p]:text-muted-foreground [&_p]:leading-relaxed
+                  [&_ul]:space-y-1.5 [&_ol]:space-y-1.5
+                  [&_li_strong]:text-foreground">
+                  <ReactMarkdown>{prediction}</ReactMarkdown>
                 </div>
               ) : null}
             </div>
