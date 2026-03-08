@@ -149,7 +149,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
       .sort((a, b) => a.sgpaNum - b.sgpaNum);
     const step = Math.max(1, Math.floor(sorted.length / 20));
     return sorted.filter((_, i) => i % step === 0).map((r, i) => ({
-      idx: i + 1, sgpa: r.sgpaNum, name: r.name.split(" ")[0],
+      idx: i + 1, sgpa: r.sgpaNum, studentName: r.name, shortName: r.name.split(" ")[0],
     }));
   }, [validResults]);
 
@@ -399,9 +399,9 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={sgpaTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
-                  <XAxis dataKey="idx" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} label={{ value: "Students", position: "insideBottom", offset: -2, fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                  <XAxis dataKey="shortName" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} angle={-35} textAnchor="end" height={60} interval={0} />
                   <YAxis domain={[0, 10]} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(val: number) => [val.toFixed(2), "SGPA"]} labelFormatter={(l) => `Student #${l}`} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(val: number) => [val.toFixed(2), "SGPA"]} labelFormatter={(_: any, payload: any[]) => payload?.[0]?.payload?.studentName || ''} />
                   <Line type="monotone" dataKey="sgpa" stroke="hsl(210, 100%, 52%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(210, 100%, 52%)" }} activeDot={{ r: 5 }} />
                 </LineChart>
               </ResponsiveContainer>
