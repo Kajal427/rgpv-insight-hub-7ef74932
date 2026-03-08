@@ -70,6 +70,11 @@ export function ActivityHistory() {
     load();
   }, []);
 
+  const handleDelete = async (id: string) => {
+    await supabase.from("activity_log").delete().eq("id", id);
+    setActivities((prev) => prev.filter((a) => a.id !== id));
+  };
+
   if (loading) {
     return (
       <div className="bg-card border border-border rounded-xl p-6 card-glow">
