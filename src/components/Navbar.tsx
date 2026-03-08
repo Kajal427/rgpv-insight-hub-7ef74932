@@ -1,12 +1,14 @@
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Menu, X, LogIn, UserPlus, Home } from "lucide-react";
+import { BarChart3, Menu, X, LogIn, UserPlus, Home, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useAdminCheck } from "@/hooks/useAdminCheck";
 
 export const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { isAdmin } = useAdminCheck();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
