@@ -374,11 +374,11 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 15;
+      const MAX_ATTEMPTS = 8;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 5;
-      const AI_BASE_DELAY_MS = 300;
-      // Use stronger models first - flash-lite is too weak for CAPTCHA
+      const MAX_RATE_LIMIT_BACKOFFS = 3;
+      const AI_BASE_DELAY_MS = 200;
+      // Stronger models first for better CAPTCHA accuracy
       const captchaModels = [
         "google/gemini-2.5-flash",
         "google/gemini-3-flash-preview",
