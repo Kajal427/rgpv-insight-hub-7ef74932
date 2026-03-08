@@ -632,7 +632,7 @@ Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.
       // Return last known captcha + session for manual fallback
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved.`,
+        error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved automatically.`,
         manualFallback: (lastKnownCaptcha && lastKnownSession) ? {
           captchaImage: lastKnownCaptcha,
           sessionData: lastKnownSession,
