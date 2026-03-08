@@ -94,11 +94,17 @@ const Dashboard = () => {
     setCaptchaError(null);
     setCompletedCount(0);
     setLastResult(null);
-    if (!preserveExisting) setResults([]);
     sessionRef.current = null;
     captchaRef.current = null;
 
-    const fetched: StudentResult[] = preserveExisting ? [...results.filter(r => r.status !== "Error" && r.name !== "Fetch Failed")] : [];
+    // When retrying, keep all successful results and only re-fetch failed ones
+    const existing: StudentResult[] = preserveExisting
+      ? [...results.filter(r => r.status !== "Error" && r.name !== "Fetch Failed")]
+      : [];
+    
+    if (!preserveExisting) setResults([]);
+
+    const fetched: StudentResult[] = [...existing];
 
     for (let i = 0; i < enrollmentList.length; i++) {
       if (abortRef.current) break;
@@ -106,7 +112,13 @@ const Dashboard = () => {
       setCaptchaError(null);
 
       const enrollment = enrollmentList[i];
-      const MAX_ENROLLMENT_RETRIES = 3;
+      // Skip if already successfully fetched
+      if (fetched.find(f => f.enrollment === enrollment && f.name !== "Fetch Failed" && f.status !== "Error")) {
+        setCompletedCount(i + 1);
+        continue;
+      }
+
+      const MAX_ENROLLMENT_RETRIES = 5;
       let succeeded = false;
       let finalError = "Failed";
 
@@ -127,7 +139,13 @@ const Dashboard = () => {
 
           if (!error && data?.success) {
             const result = data.result as StudentResult;
-            fetched.push(result);
+            // Replace any existing failed entry for this enrollment
+            const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+            if (existingIdx >= 0) {
+              fetched[existingIdx] = result;
+            } else {
+              fetched.push(result);
+            }
             setLastResult({ name: result.name, status: result.status });
             succeeded = true;
 
@@ -147,7 +165,7 @@ const Dashboard = () => {
           const isTransient = isRateLimited || /timed out|unreachable|aborted|connection/i.test(errMsg);
 
           if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
-            const waitMs = isRateLimited ? 15000 : 6000;
+            const waitMs = isRateLimited ? 10000 : 3000;
             setCaptchaError(`${enrollment}: ${isRateLimited ? "AI is busy" : errMsg}. Retrying in ${Math.ceil(waitMs / 1000)}s...`);
             sessionRef.current = null;
             captchaRef.current = null;
@@ -162,10 +180,10 @@ const Dashboard = () => {
           const isTransient = /timed out|unreachable|aborted|connection|rate limited/i.test(errMsg);
 
           if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
-            setCaptchaError(`${enrollment}: Temporary issue. Retrying in 6s...`);
+            setCaptchaError(`${enrollment}: Temporary issue. Retrying in 3s...`);
             sessionRef.current = null;
             captchaRef.current = null;
-            await new Promise((r) => setTimeout(r, 6000));
+            await new Promise((r) => setTimeout(r, 3000));
             continue;
           }
 
@@ -174,12 +192,16 @@ const Dashboard = () => {
       }
 
       if (!succeeded) {
-        if (!fetched.find(f => f.enrollment === enrollment)) {
-          setCaptchaError(`${enrollment}: ${finalError}`);
-          fetched.push({ enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] });
-          sessionRef.current = null;
-          captchaRef.current = null;
+        const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+        const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
+        if (existingIdx >= 0) {
+          fetched[existingIdx] = failedEntry;
+        } else {
+          fetched.push(failedEntry);
         }
+        setCaptchaError(`${enrollment}: ${finalError}`);
+        sessionRef.current = null;
+        captchaRef.current = null;
       }
 
       setResults([...fetched]);
@@ -187,9 +209,9 @@ const Dashboard = () => {
       localStorage.setItem("rgpv_results", JSON.stringify(fetched));
       localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
 
-      // Reduced delay between students
+      // Minimal delay between students for speed
       if (i < enrollmentList.length - 1 && !abortRef.current) {
-        await new Promise((r) => setTimeout(r, 1000));
+        await new Promise((r) => setTimeout(r, 500));
       }
     }
 
@@ -197,7 +219,7 @@ const Dashboard = () => {
     
     logActivity("result_fetch", { program, semester, total: fetched.filter(r => r.name !== "Fetch Failed").length });
     toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
-  }, [semester, program, toast]);
+  }, [semester, program, toast, results]);
 
   // Start the flow after CSV upload
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
