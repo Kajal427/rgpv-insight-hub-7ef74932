@@ -1,20 +1,43 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Menu, X, LogIn, UserPlus, Home, Shield } from "lucide-react";
+import { BarChart3, Menu, X, LogIn, UserPlus, Home, Shield, LayoutDashboard, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAdminCheck } from "@/hooks/useAdminCheck";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [session, setSession] = useState<any>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
   const { isAdmin } = useAdminCheck();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setSessionLoading(false);
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setSessionLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
+
+  const isLoggedIn = !!session && !sessionLoading;
 
   return (
     <nav
@@ -64,16 +87,31 @@ export const Navbar = () => {
 
           <div className="w-px h-5 bg-[hsl(230,20%,20%)] mx-2" />
 
-          <Link to="/login">
-            <Button variant="ghost" size="sm" className="gap-1.5 text-[hsl(230,20%,60%)] hover:text-white hover:bg-[hsl(240,50%,55%,0.1)]">
-              <LogIn className="h-3.5 w-3.5" /> Login
-            </Button>
-          </Link>
-          <Link to="/register">
-            <Button size="sm" className="gap-1.5 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white">
-              <UserPlus className="h-3.5 w-3.5" /> Register
-            </Button>
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link to="/dashboard">
+                <Button variant="ghost" size="sm" className="gap-1.5 text-[hsl(174,72%,55%)] hover:text-[hsl(174,72%,65%)] hover:bg-[hsl(174,72%,50%,0.1)]">
+                  <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
+                </Button>
+              </Link>
+              <Button variant="ghost" size="sm" className="gap-1.5 text-[hsl(230,20%,60%)] hover:text-white hover:bg-[hsl(240,50%,55%,0.1)]" onClick={handleLogout}>
+                <LogOut className="h-3.5 w-3.5" /> Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/login">
+                <Button variant="ghost" size="sm" className="gap-1.5 text-[hsl(230,20%,60%)] hover:text-white hover:bg-[hsl(240,50%,55%,0.1)]">
+                  <LogIn className="h-3.5 w-3.5" /> Login
+                </Button>
+              </Link>
+              <Link to="/register">
+                <Button size="sm" className="gap-1.5 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white">
+                  <UserPlus className="h-3.5 w-3.5" /> Register
+                </Button>
+              </Link>
+            </>
+          )}
           <ThemeToggle />
         </div>
 
@@ -85,7 +123,7 @@ export const Navbar = () => {
         </div>
       </div>
 
-      <div className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"}`}>
+      <div className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out ${mobileOpen ? "max-h-72 opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="bg-[hsl(230,35%,10%,0.98)] backdrop-blur-xl border-t border-[hsl(230,20%,18%)] px-4 py-4 flex flex-col gap-1">
           {[
             { href: "/#features", label: "Features" },
@@ -109,16 +147,31 @@ export const Navbar = () => {
               </Button>
             </Link>
           )}
-          <Link to="/login" onClick={() => setMobileOpen(false)}>
-            <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-[hsl(230,20%,60%)] hover:text-white">
-              <LogIn className="h-3.5 w-3.5" /> Login
-            </Button>
-          </Link>
-          <Link to="/register" onClick={() => setMobileOpen(false)}>
-            <Button size="sm" className="w-full gap-2 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white">
-              <UserPlus className="h-3.5 w-3.5" /> Register
-            </Button>
-          </Link>
+          {isLoggedIn ? (
+            <>
+              <Link to="/dashboard" onClick={() => setMobileOpen(false)}>
+                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-[hsl(174,72%,55%)] hover:text-[hsl(174,72%,65%)]">
+                  <LayoutDashboard className="h-3.5 w-3.5" /> Dashboard
+                </Button>
+              </Link>
+              <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:bg-red-500/10" onClick={() => { setMobileOpen(false); handleLogout(); }}>
+                <LogOut className="h-3.5 w-3.5" /> Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" onClick={() => setMobileOpen(false)}>
+                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 text-[hsl(230,20%,60%)] hover:text-white">
+                  <LogIn className="h-3.5 w-3.5" /> Login
+                </Button>
+              </Link>
+              <Link to="/register" onClick={() => setMobileOpen(false)}>
+                <Button size="sm" className="w-full gap-2 bg-[hsl(240,50%,55%)] hover:bg-[hsl(240,50%,60%)] text-white">
+                  <UserPlus className="h-3.5 w-3.5" /> Register
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>
