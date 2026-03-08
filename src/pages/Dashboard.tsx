@@ -122,6 +122,7 @@ const Dashboard = () => {
       const MAX_ENROLLMENT_RETRIES = 5;
       let succeeded = false;
       let finalError = "Failed";
+      let lastManualFallback: { captchaImage: string; sessionData: any } | null = null;
 
       for (let attempt = 0; attempt < MAX_ENROLLMENT_RETRIES; attempt++) {
         if (abortRef.current) break;
@@ -140,13 +141,9 @@ const Dashboard = () => {
 
           if (!error && data?.success) {
             const result = data.result as StudentResult;
-            // Replace any existing failed entry for this enrollment
             const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-            if (existingIdx >= 0) {
-              fetched[existingIdx] = result;
-            } else {
-              fetched.push(result);
-            }
+            if (existingIdx >= 0) fetched[existingIdx] = result;
+            else fetched.push(result);
             setLastResult({ name: result.name, status: result.status });
             succeeded = true;
 
@@ -158,6 +155,10 @@ const Dashboard = () => {
               captchaRef.current = null;
             }
             break;
+          }
+
+          if (data?.manualFallback) {
+            lastManualFallback = data.manualFallback;
           }
 
           const errMsg = data?.error || error?.message || "Failed";
@@ -193,31 +194,16 @@ const Dashboard = () => {
       }
 
       if (!succeeded) {
-        // Check if we got manual fallback data from edge function
-        // We need to check the last response for manualFallback
         let manualFallbackUsed = false;
 
-        // Try one more time via edge function to get fallback data
-        try {
-          const { data: fallbackData } = await supabase.functions.invoke("fetch-rgpv-results", {
-            body: {
-              action: "auto-fetch",
-              enrollment,
-              semester,
-              program,
-              sessionData: null,
-              captchaImage: null,
-            },
-          });
-
-          if (!fallbackData?.success && fallbackData?.manualFallback) {
-            // Show manual CAPTCHA UI and wait for user input
+        if (lastManualFallback && !abortRef.current) {
+          try {
             const manualResult = await new Promise<{ action: "submit"; text: string } | { action: "skip" }>((resolve) => {
               manualResolveRef.current = resolve;
               setManualCaptcha({
                 enrollment,
-                captchaImage: fallbackData.manualFallback.captchaImage,
-                sessionData: fallbackData.manualFallback.sessionData,
+                captchaImage: lastManualFallback!.captchaImage,
+                sessionData: lastManualFallback!.sessionData,
               });
             });
 
@@ -225,14 +211,13 @@ const Dashboard = () => {
             manualResolveRef.current = null;
 
             if (manualResult.action === "submit") {
-              // Submit with manual captcha text
               const { data: submitData } = await supabase.functions.invoke("fetch-rgpv-results", {
                 body: {
                   action: "submit",
                   enrollment,
                   semester,
                   captchaAnswer: manualResult.text,
-                  sessionData: fallbackData.manualFallback.sessionData,
+                  sessionData: lastManualFallback.sessionData,
                 },
               });
 
@@ -247,12 +232,15 @@ const Dashboard = () => {
                 if (submitData.nextSession) {
                   sessionRef.current = submitData.nextSession.sessionData;
                   captchaRef.current = submitData.nextSession.captchaImage;
+                } else {
+                  sessionRef.current = null;
+                  captchaRef.current = null;
                 }
               }
             }
+          } catch {
+            // manual fallback failed
           }
-        } catch {
-          // fallback fetch failed, continue with error
         }
 
         if (!manualFallbackUsed) {
