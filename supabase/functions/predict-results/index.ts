@@ -137,7 +137,11 @@ Analyze each student's SGPA and grades. Predict their next semester SGPA and ide
     }
 
     // All models failed
-    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a minute." }), {
+    return new Response(JSON.stringify({
+      error: "Rate limit exceeded. Please try again in a minute.",
+      retry_after_seconds: 60,
+      details: lastError,
+    }), {
       status: 429,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
