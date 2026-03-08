@@ -35,7 +35,7 @@ export const HeroSection = () => {
               </Button>
             </Link>
             <a href="#features">
-              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10">
+              <Button size="lg" variant="outline" className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10 bg-transparent">
                 Explore Features
               </Button>
             </a>
