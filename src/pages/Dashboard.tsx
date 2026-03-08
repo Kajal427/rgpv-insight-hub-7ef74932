@@ -3,31 +3,16 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download, FileUp } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download, FileUp, Eye, EyeOff } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CaptchaDialog, ManualCaptchaData } from "@/components/CaptchaDialog";
+import { CaptchaDialog } from "@/components/CaptchaDialog";
 import { AnalysisDashboard } from "@/components/AnalysisDashboard";
 import { ActivityHistory, logActivity } from "@/components/ActivityHistory";
-
-type SubjectGrade = { code: string; grade: string };
-
-type StudentResult = {
-  enrollment: string;
-  name: string;
-  sgpa: string;
-  cgpa: string;
-  status: string;
-  subjects: SubjectGrade[];
-};
-
-type SessionData = {
-  cookies: string;
-  formFields: Record<string, string>;
-  resultPageUrl: string;
-};
+import { fetchQueue, StudentResult, QueueState } from "@/lib/fetchQueue";
 
 const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
 const SEMESTERS = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: `Semester ${i + 1}` }));
@@ -43,18 +28,48 @@ const Dashboard = () => {
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Auto-fetch state
+  // Queue-driven state
+  const [queueState, setQueueState] = useState<QueueState>(fetchQueue.getState());
   const [captchaOpen, setCaptchaOpen] = useState(false);
-  const [captchaError, setCaptchaError] = useState<string | null>(null);
-  const [enrollments, setEnrollments] = useState<string[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [lastResult, setLastResult] = useState<{ name: string; status: string } | null>(null);
-  const [completedCount, setCompletedCount] = useState(0);
-  const abortRef = useRef(false);
-  const sessionRef = useRef<SessionData | null>(null);
-  const captchaRef = useRef<string | null>(null);
-  const [manualCaptcha, setManualCaptcha] = useState<ManualCaptchaData | null>(null);
-  const manualResolveRef = useRef<((value: { action: "submit"; text: string } | { action: "skip" }) => void) | null>(null);
+  const prevRunningRef = useRef(false);
+
+  // Subscribe to queue state changes
+  useEffect(() => {
+    // Sync initial state (in case queue was already running from before)
+    const initial = fetchQueue.getState();
+    setQueueState(initial);
+    if (initial.running) {
+      setResults(initial.results);
+      setCaptchaOpen(true);
+    }
+
+    const unsub = fetchQueue.subscribe((state) => {
+      setQueueState(state);
+      setResults([...state.results]);
+
+      // Auto-open dialog when manual captcha is needed
+      if (state.manualCaptcha) {
+        setCaptchaOpen(true);
+      }
+    });
+
+    return unsub;
+  }, []);
+
+  // Detect when queue finishes
+  useEffect(() => {
+    if (prevRunningRef.current && !queueState.running) {
+      // Queue just finished
+      setCaptchaOpen(false);
+      const successCount = queueState.results.filter((r) => r.name !== "Fetch Failed").length;
+      logActivity("result_fetch", { program: queueState.program, semester: queueState.semester, total: successCount });
+      toast({
+        title: "Done!",
+        description: `Fetched results for ${successCount} of ${queueState.enrollments.length} students.`,
+      });
+    }
+    prevRunningRef.current = queueState.running;
+  }, [queueState.running, queueState.results, queueState.enrollments.length, queueState.program, queueState.semester, toast]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -81,197 +96,22 @@ const Dashboard = () => {
     return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
+  // Load persisted results on mount
+  useEffect(() => {
+    if (!fetchQueue.getState().running) {
+      try {
+        const saved = localStorage.getItem("rgpv_results");
+        if (saved) setResults(JSON.parse(saved));
+      } catch {}
+    }
+  }, []);
+
   const handleLogout = async () => {
     await logActivity("logout");
     await supabase.auth.signOut();
     navigate("/");
   };
 
-
-  // Auto-fetch all results sequentially
-  const autoFetchAll = useCallback(async (enrollmentList: string[], preserveExisting = false) => {
-    abortRef.current = false;
-    setCaptchaOpen(true);
-    setCaptchaError(null);
-    setCompletedCount(0);
-    setLastResult(null);
-    sessionRef.current = null;
-    captchaRef.current = null;
-
-    // When retrying, keep all successful results and only re-fetch failed ones
-    const existing: StudentResult[] = preserveExisting
-      ? [...results.filter(r => r.status !== "Error" && r.name !== "Fetch Failed")]
-      : [];
-    
-    if (!preserveExisting) setResults([]);
-
-    const fetched: StudentResult[] = [...existing];
-
-    for (let i = 0; i < enrollmentList.length; i++) {
-      if (abortRef.current) break;
-      setCurrentIdx(i);
-      setCaptchaError(null);
-
-      const enrollment = enrollmentList[i];
-      // Skip if already successfully fetched
-      if (fetched.find(f => f.enrollment === enrollment && f.name !== "Fetch Failed" && f.status !== "Error")) {
-        setCompletedCount(i + 1);
-        continue;
-      }
-
-      const MAX_ENROLLMENT_RETRIES = 5;
-      let succeeded = false;
-      let finalError = "Failed";
-      let lastManualFallback: { captchaImage: string; sessionData: any } | null = null;
-
-      for (let attempt = 0; attempt < MAX_ENROLLMENT_RETRIES; attempt++) {
-        if (abortRef.current) break;
-
-        try {
-          const { data, error } = await supabase.functions.invoke("fetch-rgpv-results", {
-            body: {
-              action: "auto-fetch",
-              enrollment,
-              semester,
-              program,
-              sessionData: sessionRef.current,
-              captchaImage: captchaRef.current,
-            },
-          });
-
-          if (!error && data?.success) {
-            const result = data.result as StudentResult;
-            const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-            if (existingIdx >= 0) fetched[existingIdx] = result;
-            else fetched.push(result);
-            setLastResult({ name: result.name, status: result.status });
-            succeeded = true;
-
-            if (data.nextSession) {
-              sessionRef.current = data.nextSession.sessionData;
-              captchaRef.current = data.nextSession.captchaImage;
-            } else {
-              sessionRef.current = null;
-              captchaRef.current = null;
-            }
-            break;
-          }
-
-          if (data?.manualFallback) {
-            lastManualFallback = data.manualFallback;
-          }
-
-          const errMsg = data?.error || error?.message || "Failed";
-          finalError = errMsg;
-          const isRateLimited = /rate limited/i.test(errMsg);
-          const isTransient = isRateLimited || /timed out|unreachable|aborted|connection/i.test(errMsg);
-
-          if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
-            const waitMs = isRateLimited ? 10000 : 3000;
-            setCaptchaError(`${enrollment}: ${isRateLimited ? "AI is busy" : errMsg}. Retrying in ${Math.ceil(waitMs / 1000)}s...`);
-            sessionRef.current = null;
-            captchaRef.current = null;
-            await new Promise((r) => setTimeout(r, waitMs));
-            continue;
-          }
-
-          break;
-        } catch (err: any) {
-          const errMsg = err?.message || "Failed";
-          finalError = errMsg;
-          const isTransient = /timed out|unreachable|aborted|connection|rate limited/i.test(errMsg);
-
-          if (isTransient && attempt < MAX_ENROLLMENT_RETRIES - 1) {
-            setCaptchaError(`${enrollment}: Temporary issue. Retrying in 3s...`);
-            sessionRef.current = null;
-            captchaRef.current = null;
-            await new Promise((r) => setTimeout(r, 3000));
-            continue;
-          }
-
-          break;
-        }
-      }
-
-      if (!succeeded) {
-        let manualFallbackUsed = false;
-
-        if (lastManualFallback && !abortRef.current) {
-          try {
-            const manualResult = await new Promise<{ action: "submit"; text: string } | { action: "skip" }>((resolve) => {
-              manualResolveRef.current = resolve;
-              setManualCaptcha({
-                enrollment,
-                captchaImage: lastManualFallback!.captchaImage,
-                sessionData: lastManualFallback!.sessionData,
-              });
-            });
-
-            setManualCaptcha(null);
-            manualResolveRef.current = null;
-
-            if (manualResult.action === "submit") {
-              const { data: submitData } = await supabase.functions.invoke("fetch-rgpv-results", {
-                body: {
-                  action: "submit",
-                  enrollment,
-                  semester,
-                  captchaAnswer: manualResult.text,
-                  sessionData: lastManualFallback.sessionData,
-                },
-              });
-
-              if (submitData?.success && submitData?.result) {
-                const result = submitData.result as StudentResult;
-                const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-                if (existingIdx >= 0) fetched[existingIdx] = result;
-                else fetched.push(result);
-                setLastResult({ name: result.name, status: result.status });
-                manualFallbackUsed = true;
-
-                if (submitData.nextSession) {
-                  sessionRef.current = submitData.nextSession.sessionData;
-                  captchaRef.current = submitData.nextSession.captchaImage;
-                } else {
-                  sessionRef.current = null;
-                  captchaRef.current = null;
-                }
-              }
-            }
-          } catch {
-            // manual fallback failed
-          }
-        }
-
-        if (!manualFallbackUsed) {
-          const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-          const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
-          if (existingIdx >= 0) fetched[existingIdx] = failedEntry;
-          else fetched.push(failedEntry);
-          setCaptchaError(`${enrollment}: ${finalError}`);
-          sessionRef.current = null;
-          captchaRef.current = null;
-        }
-      }
-
-      setResults([...fetched]);
-      setCompletedCount(i + 1);
-      localStorage.setItem("rgpv_results", JSON.stringify(fetched));
-      localStorage.setItem("rgpv_meta", JSON.stringify({ program, semester, fetchedAt: new Date().toISOString() }));
-
-      // Minimal delay between students for speed
-      if (i < enrollmentList.length - 1 && !abortRef.current) {
-        await new Promise((r) => setTimeout(r, 500));
-      }
-    }
-
-    setCaptchaOpen(false);
-    
-    logActivity("result_fetch", { program, semester, total: fetched.filter(r => r.name !== "Fetch Failed").length });
-    toast({ title: "Done!", description: `Fetched results for ${fetched.filter(r => r.name !== "Fetch Failed").length} of ${enrollmentList.length} students.` });
-  }, [semester, program, toast, results]);
-
-  // Start the flow after CSV upload
   const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -288,27 +128,24 @@ const Dashboard = () => {
       return;
     }
     const toFetch = found.slice(0, 50);
-    setEnrollments(toFetch);
     toast({ title: `Found ${toFetch.length} enrollments`, description: "Auto-fetching results with AI CAPTCHA solving..." });
     logActivity("csv_upload", { count: toFetch.length });
-    autoFetchAll(toFetch);
+    setCaptchaOpen(true);
+    fetchQueue.start(toFetch, program, semester);
   };
 
   const retryFailed = () => {
-    const failed = results.filter(r => r.status === "Error" || r.name === "Fetch Failed");
+    const failed = results.filter((r) => r.status === "Error" || r.name === "Fetch Failed");
     if (failed.length === 0) return;
-    const failedEnrollments = failed.map(r => r.enrollment);
-    setEnrollments(failedEnrollments);
-    autoFetchAll(failedEnrollments, true);
+    const failedEnrollments = failed.map((r) => r.enrollment);
+    const successfulResults = results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed");
+    setCaptchaOpen(true);
+    fetchQueue.start(failedEnrollments, program, semester, successfulResults);
   };
 
   const handleCancel = () => {
-    abortRef.current = true;
+    fetchQueue.stop();
     setCaptchaOpen(false);
-    setManualCaptcha(null);
-    // Resolve any pending manual captcha promise
-    manualResolveRef.current?.({ action: "skip" });
-    manualResolveRef.current = null;
     if (results.length > 0) {
       toast({ title: "Stopped", description: `Saved ${results.length} results fetched so far.` });
     }
@@ -349,6 +186,10 @@ const Dashboard = () => {
     logActivity("export_excel", { program, semester, count: valid.length });
   };
 
+  const queueProgress = queueState.enrollments.length > 0
+    ? (queueState.completedCount / queueState.enrollments.length) * 100
+    : 0;
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -367,6 +208,36 @@ const Dashboard = () => {
             <LogOut className="h-4 w-4" /> Logout
           </Button>
         </div>
+
+        {/* Background Fetch Status Bar */}
+        {queueState.running && !captchaOpen && (
+          <div
+            className="bg-card border border-primary/30 rounded-xl p-4 mb-6 cursor-pointer hover:border-primary/50 transition-colors"
+            onClick={() => setCaptchaOpen(true)}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                <span className="font-medium">Fetching results in background...</span>
+                <span className="text-muted-foreground">
+                  {queueState.completedCount} / {queueState.enrollments.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7" onClick={(e) => { e.stopPropagation(); setCaptchaOpen(true); }}>
+                  <Eye className="h-3 w-3" /> View Details
+                </Button>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleCancel(); }}>
+                  Stop
+                </Button>
+              </div>
+            </div>
+            <Progress value={queueProgress} className="h-2" />
+            {queueState.error && (
+              <p className="text-xs text-destructive mt-1">{queueState.error}</p>
+            )}
+          </div>
+        )}
 
         {/* Faculty Details */}
         {profile && (
@@ -451,7 +322,7 @@ const Dashboard = () => {
           <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
             <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
             <p className="text-sm text-muted-foreground mb-2">Drag & drop or click to upload CSV</p>
-            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" />
+            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" disabled={queueState.running} />
           </div>
         </div>
 
@@ -463,9 +334,9 @@ const Dashboard = () => {
                 <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
               <div className="flex gap-2">
-                {results.some(r => r.status === "Error" || r.name === "Fetch Failed") && (
+                {results.some((r) => r.status === "Error" || r.name === "Fetch Failed") && !queueState.running && (
                   <Button variant="destructive" size="sm" className="gap-2" onClick={retryFailed}>
-                    <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter(r => r.status === "Error" || r.name === "Fetch Failed").length})
+                    <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter((r) => r.status === "Error" || r.name === "Fetch Failed").length})
                   </Button>
                 )}
                 <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
@@ -547,20 +418,17 @@ const Dashboard = () => {
 
       <CaptchaDialog
         open={captchaOpen}
-        currentEnrollment={enrollments[currentIdx] || ""}
-        currentIndex={currentIdx}
-        totalCount={enrollments.length}
-        error={captchaError}
+        currentEnrollment={queueState.enrollments[queueState.currentIndex] || ""}
+        currentIndex={queueState.currentIndex}
+        totalCount={queueState.enrollments.length}
+        error={queueState.error}
         onCancel={handleCancel}
-        lastResult={lastResult}
-        completedCount={completedCount}
-        manualCaptcha={manualCaptcha}
-        onManualSubmit={(text) => {
-          manualResolveRef.current?.({ action: "submit", text });
-        }}
-        onManualSkip={() => {
-          manualResolveRef.current?.({ action: "skip" });
-        }}
+        lastResult={queueState.lastResult}
+        completedCount={queueState.completedCount}
+        manualCaptcha={queueState.manualCaptcha}
+        onManualSubmit={(text) => fetchQueue.submitManualCaptcha(text)}
+        onManualSkip={() => fetchQueue.skipManualCaptcha()}
+        onMinimize={() => setCaptchaOpen(false)}
       />
     </div>
   );

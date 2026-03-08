@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, StopCircle, Keyboard, SkipForward, Send } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, StopCircle, Keyboard, SkipForward, Send, EyeOff } from "lucide-react";
 
 export interface ManualCaptchaData {
   enrollment: string;
@@ -34,6 +34,7 @@ interface CaptchaDialogProps {
   manualCaptcha: ManualCaptchaData | null;
   onManualSubmit: (captchaText: string) => void;
   onManualSkip: () => void;
+  onMinimize?: () => void;
 }
 
 export function CaptchaDialog({
@@ -47,6 +48,7 @@ export function CaptchaDialog({
   manualCaptcha,
   onManualSubmit,
   onManualSkip,
+  onMinimize,
 }: CaptchaDialogProps) {
   const [manualInput, setManualInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -167,7 +169,12 @@ export function CaptchaDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex gap-2 sm:justify-between">
+          {onMinimize && (
+            <Button variant="outline" size="sm" className="gap-2" onClick={onMinimize}>
+              <EyeOff className="h-4 w-4" /> Minimize
+            </Button>
+          )}
           <Button variant="destructive" size="sm" className="gap-2" onClick={onCancel}>
             <StopCircle className="h-4 w-4" /> Stop Fetching
           </Button>
