@@ -374,27 +374,26 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 8;
+      const MAX_ATTEMPTS = 12;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const MAX_RATE_LIMIT_BACKOFFS = 3;
-      const AI_BASE_DELAY_MS = 200;
-      // Stronger models first for better CAPTCHA accuracy
+      const AI_BASE_DELAY_MS = 150;
+      // Best vision models first — stronger models solve CAPTCHAs more reliably
       const captchaModels = [
-        "google/gemini-2.5-flash",
-        "google/gemini-3-flash-preview",
         "google/gemini-2.5-pro",
+        "openai/gpt-5-mini",
+        "google/gemini-2.5-flash",
       ];
 
-      const CAPTCHA_PROMPT = `Look at this CAPTCHA image carefully. It contains exactly 5 characters made of uppercase letters (A-Z) and/or digits (0-9).
+      const CAPTCHA_PROMPT = `You are an expert CAPTCHA solver. This image contains exactly 5 characters — uppercase letters (A-Z) and/or digits (0-9).
 
-IMPORTANT: The image has colored noise lines drawn over the text - COMPLETELY IGNORE those lines. Only read the actual text characters underneath.
+CRITICAL RULES:
+- IGNORE all colored noise lines, dots, and background artifacts — they are decoys
+- Focus ONLY on the solid text characters underneath the noise
+- Common confusions: 0/O, 1/I/L, 5/S, 8/B, 2/Z, 6/G — look carefully at shape details
+- Characters may be slightly rotated, stretched, or overlapping
 
-Tips for this specific CAPTCHA style:
-- Characters may be slightly rotated or distorted
-- Background has random colored lines crossing over - these are NOT part of the text
-- Each character is distinct and separated
-
-Output ONLY the 5 characters with no other text.`;
+Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
@@ -438,84 +437,84 @@ Output ONLY the 5 characters with no other text.`;
             lastKnownSession = session;
           }
 
-          // Step 2: AI solve captcha — try models in order, single best guess
+          // Step 2: AI solve captcha — rotate through models across attempts
           let guess = "";
           let lastAiError = "";
+          // Pick model based on attempt number to rotate through all models
+          const modelIndex = attempt % captchaModels.length;
+          const model = captchaModels[modelIndex];
+          let rateLimitBackoffs = 0;
 
-          for (const model of captchaModels) {
-            let rateLimitBackoffs = 0;
+          while (rateLimitBackoffs <= MAX_RATE_LIMIT_BACKOFFS) {
+            await wait(AI_BASE_DELAY_MS);
 
-            while (rateLimitBackoffs <= MAX_RATE_LIMIT_BACKOFFS) {
-              await wait(AI_BASE_DELAY_MS);
+            try {
+              const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
+                method: "POST",
+                headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  model,
+                  messages: [{
+                    role: "user",
+                    content: [
+                      { type: "image_url", image_url: { url: captcha } },
+                      { type: "text", text: CAPTCHA_PROMPT },
+                    ],
+                  }],
+                  max_tokens: 20,
+                  temperature: 0.1,
+                }),
+              }, 30000);
 
-              try {
-                const aiResp = await fetchWithTimeout("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                  method: "POST",
-                  headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    model,
-                    messages: [{
-                      role: "user",
-                      content: [
-                        { type: "image_url", image_url: { url: captcha } },
-                        { type: "text", text: CAPTCHA_PROMPT },
-                      ],
-                    }],
-                    max_tokens: 20,
-                    temperature: 0.05,
-                  }),
-                }, 30000);
-
-                if (aiResp.status === 429) {
-                  rateLimitBackoffs += 1;
-                  if (rateLimitBackoffs > MAX_RATE_LIMIT_BACKOFFS) {
-                    console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
-                    break;
-                  }
-                  const backoffMs = Math.min(6000, 1000 * (2 ** (rateLimitBackoffs - 1)));
-                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
-                  await wait(backoffMs);
-                  continue;
-                }
-
-                if (aiResp.status === 402) {
-                  return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
-                    { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-                }
-
-                if (!aiResp.ok) {
-                  lastAiError = `AI request failed (${aiResp.status})`;
+              if (aiResp.status === 429) {
+                rateLimitBackoffs += 1;
+                if (rateLimitBackoffs > MAX_RATE_LIMIT_BACKOFFS) {
+                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited`);
                   break;
                 }
+                const backoffMs = Math.min(6000, 1000 * (2 ** (rateLimitBackoffs - 1)));
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: rate limited on ${model}, waiting ${backoffMs}ms`);
+                await wait(backoffMs);
+                continue;
+              }
 
-                const aiData = await aiResp.json();
-                const rawText = extractAiText(aiData).trim();
-                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
+              if (aiResp.status === 402) {
+                return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
+                  { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              }
 
-                // Extract guess: strip everything except A-Z 0-9, take first 5-char block
-                const allChars = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
-                if (allChars.length >= 5) {
-                  guess = allChars.substring(0, 5);
-                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}"`);
-                } else if (allChars.length >= 4) {
-                  guess = allChars;
-                  console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}" (short)`);
-                }
-                break;
-              } catch (e) {
-                lastAiError = `AI error: ${e}`;
+              if (!aiResp.ok) {
+                lastAiError = `AI request failed (${aiResp.status})`;
                 break;
               }
-            }
 
-            if (guess) break;
+              const aiData = await aiResp.json();
+              const rawText = extractAiText(aiData).trim();
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
+
+              const allChars = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              if (allChars.length >= 5) {
+                guess = allChars.substring(0, 5);
+              } else if (allChars.length >= 4) {
+                guess = allChars;
+              }
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess="${guess}"`);
+              break;
+            } catch (e) {
+              lastAiError = `AI error: ${e}`;
+              break;
+            }
           }
 
           if (!guess) {
             console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guess. ${lastAiError}`);
+            // Don't reset session — try same captcha with next model on next attempt
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await wait(300);
+              continue;
+            }
             session = null;
             captcha = null;
-            await wait(500);
             continue;
           }
 
@@ -633,7 +632,7 @@ Output ONLY the 5 characters with no other text.`;
       // Return last known captcha + session for manual fallback
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved.`,
+        error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved automatically.`,
         manualFallback: (lastKnownCaptcha && lastKnownSession) ? {
           captchaImage: lastKnownCaptcha,
           sessionData: lastKnownSession,
