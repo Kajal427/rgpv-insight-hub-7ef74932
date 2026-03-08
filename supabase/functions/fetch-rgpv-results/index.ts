@@ -374,27 +374,26 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 8;
+      const MAX_ATTEMPTS = 12;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const MAX_RATE_LIMIT_BACKOFFS = 3;
-      const AI_BASE_DELAY_MS = 200;
-      // Stronger models first for better CAPTCHA accuracy
+      const AI_BASE_DELAY_MS = 150;
+      // Best vision models first — stronger models solve CAPTCHAs more reliably
       const captchaModels = [
-        "google/gemini-2.5-flash",
-        "google/gemini-3-flash-preview",
         "google/gemini-2.5-pro",
+        "openai/gpt-5-mini",
+        "google/gemini-2.5-flash",
       ];
 
-      const CAPTCHA_PROMPT = `Look at this CAPTCHA image carefully. It contains exactly 5 characters made of uppercase letters (A-Z) and/or digits (0-9).
+      const CAPTCHA_PROMPT = `You are an expert CAPTCHA solver. This image contains exactly 5 characters — uppercase letters (A-Z) and/or digits (0-9).
 
-IMPORTANT: The image has colored noise lines drawn over the text - COMPLETELY IGNORE those lines. Only read the actual text characters underneath.
+CRITICAL RULES:
+- IGNORE all colored noise lines, dots, and background artifacts — they are decoys
+- Focus ONLY on the solid text characters underneath the noise
+- Common confusions: 0/O, 1/I/L, 5/S, 8/B, 2/Z, 6/G — look carefully at shape details
+- Characters may be slightly rotated, stretched, or overlapping
 
-Tips for this specific CAPTCHA style:
-- Characters may be slightly rotated or distorted
-- Background has random colored lines crossing over - these are NOT part of the text
-- Each character is distinct and separated
-
-Output ONLY the 5 characters with no other text.`;
+Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
