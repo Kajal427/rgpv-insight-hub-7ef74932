@@ -198,8 +198,7 @@ const Admin = () => {
               totalAdmins={roles.filter((r) => r.role === "admin").length}
               recentSignups={recentSignups}
             />
-            <div className="grid lg:grid-cols-2 gap-6">
-              <AdminActivityTable activities={activities.slice(0, 15)} profiles={profiles} />
+            <div className="grid gap-6">
               <AdminUsersTable
                 profiles={profiles.slice(0, 10)}
                 roles={roles}
