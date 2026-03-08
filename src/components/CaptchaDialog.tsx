@@ -48,6 +48,7 @@ export function CaptchaDialog({
   manualCaptcha,
   onManualSubmit,
   onManualSkip,
+  onMinimize,
 }: CaptchaDialogProps) {
   const [manualInput, setManualInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
