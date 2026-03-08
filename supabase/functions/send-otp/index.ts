@@ -1,4 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
+import nodemailer from "npm:nodemailer@6";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +38,6 @@ Deno.serve(async (req) => {
     );
 
     // Rate limit: one OTP request every 30 seconds per email
-    // Only consider verified=false entries that haven't expired
     const { data: recentOtp } = await supabase
       .from("otp_verifications")
       .select("created_at")
@@ -59,50 +59,44 @@ Deno.serve(async (req) => {
     const otp = generateSecureOtp();
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
 
-    // Send email FIRST before storing OTP
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    if (!resendApiKey) {
+    // Send email via Gmail SMTP using Nodemailer
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailAppPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+
+    if (!gmailUser || !gmailAppPassword) {
       return new Response(JSON.stringify({ error: "Email provider is not configured" }), {
         status: 500,
         headers: jsonHeaders,
       });
     }
 
-    const resendRes = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: gmailUser,
+        pass: gmailAppPassword,
       },
-      body: JSON.stringify({
-        from: "RGPV Result Analyzer <onboarding@resend.dev>",
-        to: [email],
-        subject: "Your OTP for Registration",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb;">
-            <h2 style="color: #1a1a2e; margin-bottom: 8px;">Email Verification</h2>
-            <p style="color: #6b7280; font-size: 14px;">Use the code below to verify your email for faculty registration:</p>
-            <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e;">${otp}</span>
-            </div>
-            <p style="color: #6b7280; font-size: 12px;">This code expires in 5 minutes. If you didn't request this, please ignore this email.</p>
-          </div>
-        `,
-      }),
     });
 
-    if (!resendRes.ok) {
-      const resendText = await resendRes.text();
-      console.error("Resend API error:", resendText);
-      return new Response(
-        JSON.stringify({
-          error: "Failed to send verification email. Please try again.",
-        }),
-        { status: 500, headers: jsonHeaders }
-      );
-    }
+    await transporter.sendMail({
+      from: `"RGPV Result Analyzer" <${gmailUser}>`,
+      to: email,
+      subject: "Your OTP for Registration",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px; background: #ffffff; border-radius: 12px; border: 1px solid #e5e7eb;">
+          <h2 style="color: #1a1a2e; margin-bottom: 8px;">Email Verification</h2>
+          <p style="color: #6b7280; font-size: 14px;">Use the code below to verify your email for faculty registration:</p>
+          <div style="background: #f3f4f6; border-radius: 8px; padding: 20px; text-align: center; margin: 24px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1a1a2e;">${otp}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 12px;">This code expires in 5 minutes. If you didn't request this, please ignore this email.</p>
+        </div>
+      `,
+    });
 
-    // Email sent successfully — now store OTP
+    // Email sent — store OTP
     await supabase.from("otp_verifications").delete().eq("email", email);
 
     const { error: insertError } = await supabase
