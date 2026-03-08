@@ -8,7 +8,7 @@ import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CaptchaDialog } from "@/components/CaptchaDialog";
+import { CaptchaDialog, ManualCaptchaData } from "@/components/CaptchaDialog";
 import { AnalysisDashboard } from "@/components/AnalysisDashboard";
 import { ActivityHistory, logActivity } from "@/components/ActivityHistory";
 
@@ -53,7 +53,8 @@ const Dashboard = () => {
   const abortRef = useRef(false);
   const sessionRef = useRef<SessionData | null>(null);
   const captchaRef = useRef<string | null>(null);
-
+  const [manualCaptcha, setManualCaptcha] = useState<ManualCaptchaData | null>(null);
+  const manualResolveRef = useRef<((value: { action: "submit"; text: string } | { action: "skip" }) => void) | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -121,6 +122,7 @@ const Dashboard = () => {
       const MAX_ENROLLMENT_RETRIES = 5;
       let succeeded = false;
       let finalError = "Failed";
+      let lastManualFallback: { captchaImage: string; sessionData: any } | null = null;
 
       for (let attempt = 0; attempt < MAX_ENROLLMENT_RETRIES; attempt++) {
         if (abortRef.current) break;
@@ -139,13 +141,9 @@ const Dashboard = () => {
 
           if (!error && data?.success) {
             const result = data.result as StudentResult;
-            // Replace any existing failed entry for this enrollment
             const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-            if (existingIdx >= 0) {
-              fetched[existingIdx] = result;
-            } else {
-              fetched.push(result);
-            }
+            if (existingIdx >= 0) fetched[existingIdx] = result;
+            else fetched.push(result);
             setLastResult({ name: result.name, status: result.status });
             succeeded = true;
 
@@ -157,6 +155,10 @@ const Dashboard = () => {
               captchaRef.current = null;
             }
             break;
+          }
+
+          if (data?.manualFallback) {
+            lastManualFallback = data.manualFallback;
           }
 
           const errMsg = data?.error || error?.message || "Failed";
@@ -192,16 +194,64 @@ const Dashboard = () => {
       }
 
       if (!succeeded) {
-        const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-        const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
-        if (existingIdx >= 0) {
-          fetched[existingIdx] = failedEntry;
-        } else {
-          fetched.push(failedEntry);
+        let manualFallbackUsed = false;
+
+        if (lastManualFallback && !abortRef.current) {
+          try {
+            const manualResult = await new Promise<{ action: "submit"; text: string } | { action: "skip" }>((resolve) => {
+              manualResolveRef.current = resolve;
+              setManualCaptcha({
+                enrollment,
+                captchaImage: lastManualFallback!.captchaImage,
+                sessionData: lastManualFallback!.sessionData,
+              });
+            });
+
+            setManualCaptcha(null);
+            manualResolveRef.current = null;
+
+            if (manualResult.action === "submit") {
+              const { data: submitData } = await supabase.functions.invoke("fetch-rgpv-results", {
+                body: {
+                  action: "submit",
+                  enrollment,
+                  semester,
+                  captchaAnswer: manualResult.text,
+                  sessionData: lastManualFallback.sessionData,
+                },
+              });
+
+              if (submitData?.success && submitData?.result) {
+                const result = submitData.result as StudentResult;
+                const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+                if (existingIdx >= 0) fetched[existingIdx] = result;
+                else fetched.push(result);
+                setLastResult({ name: result.name, status: result.status });
+                manualFallbackUsed = true;
+
+                if (submitData.nextSession) {
+                  sessionRef.current = submitData.nextSession.sessionData;
+                  captchaRef.current = submitData.nextSession.captchaImage;
+                } else {
+                  sessionRef.current = null;
+                  captchaRef.current = null;
+                }
+              }
+            }
+          } catch {
+            // manual fallback failed
+          }
         }
-        setCaptchaError(`${enrollment}: ${finalError}`);
-        sessionRef.current = null;
-        captchaRef.current = null;
+
+        if (!manualFallbackUsed) {
+          const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+          const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
+          if (existingIdx >= 0) fetched[existingIdx] = failedEntry;
+          else fetched.push(failedEntry);
+          setCaptchaError(`${enrollment}: ${finalError}`);
+          sessionRef.current = null;
+          captchaRef.current = null;
+        }
       }
 
       setResults([...fetched]);
@@ -255,6 +305,10 @@ const Dashboard = () => {
   const handleCancel = () => {
     abortRef.current = true;
     setCaptchaOpen(false);
+    setManualCaptcha(null);
+    // Resolve any pending manual captcha promise
+    manualResolveRef.current?.({ action: "skip" });
+    manualResolveRef.current = null;
     if (results.length > 0) {
       toast({ title: "Stopped", description: `Saved ${results.length} results fetched so far.` });
     }
@@ -500,6 +554,13 @@ const Dashboard = () => {
         onCancel={handleCancel}
         lastResult={lastResult}
         completedCount={completedCount}
+        manualCaptcha={manualCaptcha}
+        onManualSubmit={(text) => {
+          manualResolveRef.current?.({ action: "submit", text });
+        }}
+        onManualSkip={() => {
+          manualResolveRef.current?.({ action: "skip" });
+        }}
       />
     </div>
   );
