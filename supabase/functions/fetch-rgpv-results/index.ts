@@ -630,9 +630,14 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
         }
       }
 
+      // Return last known captcha + session for manual fallback
       return new Response(JSON.stringify({ 
         success: false, 
         error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved.`,
+        manualFallback: (lastKnownCaptcha && lastKnownSession) ? {
+          captchaImage: lastKnownCaptcha,
+          sessionData: lastKnownSession,
+        } : null,
       }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
