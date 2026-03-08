@@ -3,9 +3,11 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { AnalysisDashboard, type StudentResult } from "@/components/AnalysisDashboard";
 import { Button } from "@/components/ui/button";
-import { Download, BarChart3, Upload } from "lucide-react";
+import { Download, BarChart3, Upload, FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
+
+const GRADE_POINTS: Record<string, number> = { "O": 10, "A+": 9, "A": 8, "B+": 7, "B": 6, "C+": 5, "C": 4, "D": 3, "F": 0 };
 
 const Analysis = () => {
   const [results, setResults] = useState<StudentResult[]>([]);
@@ -18,7 +20,7 @@ const Analysis = () => {
     if (storedMeta) setMeta(JSON.parse(storedMeta));
   }, []);
 
-  const validResults = results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed" && r.sgpa !== "N/A");
+  const validResults = results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed" && r.name !== "Not Found" && r.sgpa !== "N/A");
 
   const exportToExcel = () => {
     const wsData = validResults.map((r, i) => {
@@ -52,6 +54,110 @@ const Analysis = () => {
       XLSX.utils.book_append_sheet(wb, ws2, "Summary");
     }
     XLSX.writeFile(wb, `RGPV_Results_${meta?.program || ""}_Sem${meta?.semester || ""}.xlsx`);
+  };
+
+  const exportAnalysisReport = () => {
+    if (validResults.length === 0) return;
+    const wb = XLSX.utils.book_new();
+
+    const sgpas = validResults.map((r) => parseFloat(r.sgpa)).filter((n) => !isNaN(n));
+    const cgpas = validResults.map((r) => parseFloat(r.cgpa)).filter((n) => !isNaN(n));
+    const passCount = validResults.filter((r) => r.status.toLowerCase().includes("pass")).length;
+    const failCount = validResults.length - passCount;
+    const sortedSgpas = [...sgpas].sort((a, b) => a - b);
+    const median = sortedSgpas[Math.floor(sortedSgpas.length / 2)];
+
+    // 1. Overview
+    const overviewData = [
+      { Metric: "Program", Value: meta?.program || "N/A" },
+      { Metric: "Semester", Value: meta?.semester || "N/A" },
+      { Metric: "Report Generated", Value: new Date().toLocaleString("en-IN") },
+      { Metric: "Data Fetched At", Value: meta?.fetchedAt ? new Date(meta.fetchedAt).toLocaleString("en-IN") : "N/A" },
+      { Metric: "", Value: "" },
+      { Metric: "Total Students", Value: validResults.length },
+      { Metric: "Pass Count", Value: passCount },
+      { Metric: "Fail Count", Value: failCount },
+      { Metric: "Pass Percentage", Value: `${((passCount / validResults.length) * 100).toFixed(1)}%` },
+      { Metric: "", Value: "" },
+      { Metric: "Average SGPA", Value: (sgpas.reduce((a, b) => a + b, 0) / sgpas.length).toFixed(2) },
+      { Metric: "Highest SGPA", Value: Math.max(...sgpas).toFixed(2) },
+      { Metric: "Lowest SGPA", Value: Math.min(...sgpas).toFixed(2) },
+      { Metric: "Median SGPA", Value: median?.toFixed(2) || "N/A" },
+      ...(cgpas.length > 0 ? [
+        { Metric: "", Value: "" },
+        { Metric: "Average CGPA", Value: (cgpas.reduce((a, b) => a + b, 0) / cgpas.length).toFixed(2) },
+        { Metric: "Highest CGPA", Value: Math.max(...cgpas).toFixed(2) },
+        { Metric: "Lowest CGPA", Value: Math.min(...cgpas).toFixed(2) },
+      ] : []),
+    ];
+    const wsOverview = XLSX.utils.json_to_sheet(overviewData);
+    wsOverview["!cols"] = [{ wch: 22 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, wsOverview, "Overview");
+
+    // 2. SGPA Distribution
+    const sgpaBuckets: Record<string, number> = { "0-4": 0, "4-5": 0, "5-6": 0, "6-7": 0, "7-8": 0, "8-9": 0, "9-10": 0 };
+    sgpas.forEach((s) => {
+      if (s < 4) sgpaBuckets["0-4"]++;
+      else if (s < 5) sgpaBuckets["4-5"]++;
+      else if (s < 6) sgpaBuckets["5-6"]++;
+      else if (s < 7) sgpaBuckets["6-7"]++;
+      else if (s < 8) sgpaBuckets["7-8"]++;
+      else if (s < 9) sgpaBuckets["8-9"]++;
+      else sgpaBuckets["9-10"]++;
+    });
+    const distData = Object.entries(sgpaBuckets).map(([range, count]) => ({
+      "SGPA Range": range, "Student Count": count, "Percentage": `${((count / sgpas.length) * 100).toFixed(1)}%`,
+    }));
+    const wsDist = XLSX.utils.json_to_sheet(distData);
+    wsDist["!cols"] = [{ wch: 14 }, { wch: 16 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, wsDist, "SGPA Distribution");
+
+    // 3. Subject Analysis
+    const subjectMap: Record<string, { grades: Record<string, number>; total: number; points: number }> = {};
+    validResults.forEach((r) => {
+      r.subjects?.forEach((s) => {
+        if (!subjectMap[s.code]) subjectMap[s.code] = { grades: {}, total: 0, points: 0 };
+        subjectMap[s.code].grades[s.grade] = (subjectMap[s.code].grades[s.grade] || 0) + 1;
+        subjectMap[s.code].total++;
+        subjectMap[s.code].points += GRADE_POINTS[s.grade] || 0;
+      });
+    });
+    const subjectData = Object.entries(subjectMap).map(([code, data]) => ({
+      "Subject Code": code,
+      "Students": data.total,
+      "Avg Grade Points": (data.points / data.total).toFixed(2),
+      ...data.grades,
+    }));
+    if (subjectData.length > 0) {
+      const wsSub = XLSX.utils.json_to_sheet(subjectData);
+      wsSub["!cols"] = Object.keys(subjectData[0]).map((k) => ({ wch: Math.max(k.length + 2, 14) }));
+      XLSX.utils.book_append_sheet(wb, wsSub, "Subject Analysis");
+    }
+
+    // 4. Top Performers
+    const topPerformers = [...validResults].sort((a, b) => parseFloat(b.sgpa) - parseFloat(a.sgpa)).slice(0, 20);
+    const topData = topPerformers.map((r, i) => ({
+      Rank: i + 1, Enrollment: r.enrollment, Name: r.name, SGPA: r.sgpa, CGPA: r.cgpa, Status: r.status,
+    }));
+    const wsTop = XLSX.utils.json_to_sheet(topData);
+    wsTop["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 25 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(wb, wsTop, "Top Performers");
+
+    // 5. All Results
+    const fullData = validResults.map((r, i) => {
+      const row: Record<string, string | number> = {
+        "#": i + 1, Enrollment: r.enrollment, Name: r.name, SGPA: r.sgpa, CGPA: r.cgpa, Status: r.status,
+      };
+      r.subjects?.forEach((s) => { row[s.code] = s.grade; });
+      return row;
+    });
+    const wsFull = XLSX.utils.json_to_sheet(fullData);
+    wsFull["!cols"] = Object.keys(fullData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, ...fullData.map((r) => String(r[key] || "").length)) + 2,
+    }));
+    XLSX.utils.book_append_sheet(wb, wsFull, "All Results");
+
+    XLSX.writeFile(wb, `RGPV_Analysis_Report_${meta?.program || ""}_Sem${meta?.semester || ""}.xlsx`);
   };
 
   if (validResults.length === 0) {
@@ -92,12 +198,15 @@ const Analysis = () => {
               {meta?.fetchedAt && ` • Fetched ${new Date(meta.fetchedAt).toLocaleDateString("en-IN")}`}
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Link to="/upload-analysis">
               <Button variant="outline" className="gap-2"><Upload className="h-4 w-4" /> Upload Excel</Button>
             </Link>
-            <Button onClick={exportToExcel} className="gap-2">
-              <Download className="h-4 w-4" /> Export Excel
+            <Button variant="outline" onClick={exportToExcel} className="gap-2">
+              <Download className="h-4 w-4" /> Export Data
+            </Button>
+            <Button onClick={exportAnalysisReport} className="gap-2">
+              <FileText className="h-4 w-4" /> Download Report
             </Button>
           </div>
         </div>
