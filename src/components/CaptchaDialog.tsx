@@ -34,6 +34,7 @@ interface CaptchaDialogProps {
   manualCaptcha: ManualCaptchaData | null;
   onManualSubmit: (captchaText: string) => void;
   onManualSkip: () => void;
+  onMinimize?: () => void;
 }
 
 export function CaptchaDialog({
