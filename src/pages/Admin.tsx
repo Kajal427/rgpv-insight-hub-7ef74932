@@ -20,6 +20,7 @@ interface Profile {
   created_at: string;
   email: string;
   last_sign_in_at: string | null;
+  is_blocked?: boolean;
 }
 
 interface ActivityLog {
@@ -131,6 +132,27 @@ const Admin = () => {
     }
   };
 
+  const toggleBlockUser = async (userId: string, blocked: boolean, userName: string) => {
+    try {
+      const response = await supabase.functions.invoke("admin-toggle-block", {
+        body: { userId, blocked },
+      });
+
+      if (response.error || response.data?.error) {
+        toast({ title: "Error", description: response.data?.error || response.error?.message, variant: "destructive" });
+        return;
+      }
+
+      toast({
+        title: blocked ? "User Blocked" : "User Unblocked",
+        description: `${userName} has been ${blocked ? "blocked" : "unblocked"}.`,
+      });
+      setProfiles(profiles.map((p) => p.user_id === userId ? { ...p, is_blocked: blocked } : p));
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed", variant: "destructive" });
+    }
+  };
+
   const recentSignups = profiles.filter((p) => {
     const d = new Date(p.created_at);
     const now = new Date();
@@ -205,6 +227,7 @@ const Admin = () => {
                 onAddAdmin={addAdminRole}
                 onRemoveRole={removeRole}
                 onDeleteUser={deleteUser}
+                onToggleBlock={toggleBlockUser}
                 currentUserId={currentUserId}
               />
             </div>
@@ -219,6 +242,7 @@ const Admin = () => {
             onAddAdmin={addAdminRole}
             onRemoveRole={removeRole}
             onDeleteUser={deleteUser}
+            onToggleBlock={toggleBlockUser}
             currentUserId={currentUserId}
           />
         )}
