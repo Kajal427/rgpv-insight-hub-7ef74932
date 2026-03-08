@@ -189,11 +189,8 @@ const Dashboard = () => {
     <div className="min-h-screen bg-[hsl(230,35%,10%)]">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8">
           <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
-          <Button variant="outline" size="sm" className="gap-2 border-[hsl(230,20%,20%)] text-[hsl(230,20%,60%)] hover:bg-[hsl(240,50%,55%,0.1)] hover:text-white" onClick={handleLogout}>
-            <LogOut className="h-4 w-4" /> Logout
-          </Button>
         </div>
 
         {/* Background Fetch Status Bar */}
