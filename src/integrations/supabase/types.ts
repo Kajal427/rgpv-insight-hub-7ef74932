@@ -155,6 +155,20 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      admin_get_all_profiles_with_email: {
+        Args: never
+        Returns: {
+          created_at: string
+          department: string
+          email: string
+          full_name: string
+          id: string
+          last_sign_in_at: string
+          phone: string
+          updated_at: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
