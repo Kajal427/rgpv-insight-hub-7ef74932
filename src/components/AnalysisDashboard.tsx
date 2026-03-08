@@ -181,7 +181,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { label: "Total Students", value: stats.total, icon: Users, accent: "bg-blue-500/20" },
                 { label: "Average SGPA", value: stats.avg, icon: TrendingUp, accent: "bg-teal-500/20" },
@@ -189,6 +189,11 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                 { label: "Lowest SGPA", value: stats.min, icon: Target, accent: "bg-red-500/20" },
                 { label: "Pass Rate", value: `${stats.passPercent}%`, icon: Zap, accent: "bg-green-500/20" },
                 { label: "Median SGPA", value: stats.median, icon: GraduationCap, accent: "bg-purple-500/20" },
+                ...(stats.hasCgpa ? [
+                  { label: "Average CGPA", value: stats.cgpaAvg, icon: TrendingUp, accent: "bg-cyan-500/20" },
+                  { label: "Highest CGPA", value: stats.cgpaMax, icon: Trophy, accent: "bg-orange-500/20" },
+                  { label: "Lowest CGPA", value: stats.cgpaMin, icon: Target, accent: "bg-pink-500/20" },
+                ] : []),
               ].map((s) => (
                 <div key={s.label} className={`${s.accent} backdrop-blur-sm rounded-xl p-4 border border-white/10`}>
                   <div className="flex items-center gap-2 mb-2">
