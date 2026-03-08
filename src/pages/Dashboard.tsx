@@ -263,29 +263,42 @@ const Dashboard = () => {
         )}
 
         {/* Quick Actions */}
-        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+        <div className="grid sm:grid-cols-3 gap-4 mb-8">
           <Link to="/upload-analysis" className="block">
-            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer`}>
+            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-xl bg-[hsl(240,50%,55%,0.15)] group-hover:bg-[hsl(240,50%,55%,0.25)] transition-colors">
                   <FileUp className="h-6 w-6 text-[hsl(220,60%,65%)]" />
                 </div>
                 <div>
                   <h3 className="font-display font-semibold text-white">Upload & Analyze Excel</h3>
-                  <p className="text-sm text-[hsl(230,15%,50%)]">Upload a previously exported result sheet for full analysis</p>
+                  <p className="text-sm text-[hsl(230,15%,50%)]">Upload exported result sheet for analysis</p>
                 </div>
               </div>
             </div>
           </Link>
           <Link to="/analysis" className="block">
-            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer`}>
+            <div className={`${cardClasses} p-6 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-xl bg-[hsl(174,60%,30%,0.15)] group-hover:bg-[hsl(174,60%,30%,0.25)] transition-colors">
                   <BarChart3 className="h-6 w-6 text-[hsl(174,72%,50%)]" />
                 </div>
                 <div>
                   <h3 className="font-display font-semibold text-white">View Latest Analysis</h3>
-                  <p className="text-sm text-[hsl(230,15%,50%)]">See charts and insights from your last fetched results</p>
+                  <p className="text-sm text-[hsl(230,15%,50%)]">Charts & insights from last fetch</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link to="/upload-analysis?direct=true" className="block">
+            <div className={`${cardClasses} p-6 hover:border-[hsl(38,92%,50%,0.4)] transition-all group cursor-pointer h-full`}>
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-[hsl(38,92%,50%,0.15)] group-hover:bg-[hsl(38,92%,50%,0.25)] transition-colors">
+                  <FileSpreadsheet className="h-6 w-6 text-[hsl(38,92%,55%)]" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-white">Quick Excel Analysis</h3>
+                  <p className="text-sm text-[hsl(230,15%,50%)]">Drop any exported Excel for instant report</p>
                 </div>
               </div>
             </div>
