@@ -196,29 +196,29 @@ const Dashboard = () => {
         {/* Background Fetch Status Bar */}
         {queueState.running && !captchaOpen && (
           <div
-            className={`${cardClasses} p-4 mb-6 cursor-pointer hover:border-[hsl(240,50%,45%,0.4)] transition-colors border-[hsl(240,50%,45%,0.3)]`}
+            className={`${cardClasses} p-4 mb-6 cursor-pointer hover:border-primary/40 transition-colors border-primary/30`}
             onClick={() => setCaptchaOpen(true)}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 text-sm">
-                <Loader2 className="h-4 w-4 text-[hsl(220,60%,65%)] animate-spin" />
-                <span className="font-medium text-white">Fetching results in background...</span>
-                <span className="text-[hsl(230,15%,50%)]">
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                <span className="font-medium text-foreground">Fetching results in background...</span>
+                <span className="text-muted-foreground">
                   {queueState.completedCount} / {queueState.enrollments.length}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={(e) => { e.stopPropagation(); setCaptchaOpen(true); }}>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-primary" onClick={(e) => { e.stopPropagation(); setCaptchaOpen(true); }}>
                   <Eye className="h-3 w-3" /> View Details
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-red-400 hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); handleCancel(); }}>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleCancel(); }}>
                   Stop
                 </Button>
               </div>
             </div>
             <Progress value={queueProgress} className="h-2" />
             {queueState.error && (
-              <p className="text-xs text-red-400 mt-1">{queueState.error}</p>
+              <p className="text-xs text-destructive mt-1">{queueState.error}</p>
             )}
           </div>
         )}
@@ -230,11 +230,11 @@ const Dashboard = () => {
               className="flex items-center justify-between cursor-pointer group"
               onClick={() => setShowProfile(!showProfile)}
             >
-              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-white">
-                <User className="h-5 w-5 text-[hsl(220,60%,65%)]" />
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-foreground">
+                <User className="h-5 w-5 text-primary" />
                 {profile.full_name}
               </h2>
-              <span className={`text-[hsl(230,15%,50%)] transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}>
+              <span className={`text-muted-foreground transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}>
                 ▾
               </span>
             </div>
@@ -246,11 +246,11 @@ const Dashboard = () => {
                   { label: "Registered On", value: profile.created_at, icon: Clock },
                   { label: "Last Login", value: profile.last_sign_in, icon: Clock },
                 ].map((item) => (
-                  <div key={item.label} className="bg-[hsl(230,30%,10%)] rounded-lg p-4 flex items-start gap-3 border border-[hsl(230,20%,18%)]">
-                    <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)] mt-0.5 shrink-0" />
+                  <div key={item.label} className="bg-background rounded-lg p-4 flex items-start gap-3 border border-border">
+                    <item.icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs text-[hsl(230,15%,45%)] mb-1">{item.label}</p>
-                      <p className="text-sm font-medium text-white">{item.value}</p>
+                      <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
+                      <p className="text-sm font-medium text-foreground">{item.value}</p>
                     </div>
                   </div>
                 ))}
