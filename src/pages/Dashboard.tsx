@@ -193,16 +193,77 @@ const Dashboard = () => {
       }
 
       if (!succeeded) {
-        const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
-        const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
-        if (existingIdx >= 0) {
-          fetched[existingIdx] = failedEntry;
-        } else {
-          fetched.push(failedEntry);
+        // Check if we got manual fallback data from edge function
+        // We need to check the last response for manualFallback
+        let manualFallbackUsed = false;
+
+        // Try one more time via edge function to get fallback data
+        try {
+          const { data: fallbackData } = await supabase.functions.invoke("fetch-rgpv-results", {
+            body: {
+              action: "auto-fetch",
+              enrollment,
+              semester,
+              program,
+              sessionData: null,
+              captchaImage: null,
+            },
+          });
+
+          if (!fallbackData?.success && fallbackData?.manualFallback) {
+            // Show manual CAPTCHA UI and wait for user input
+            const manualResult = await new Promise<{ action: "submit"; text: string } | { action: "skip" }>((resolve) => {
+              manualResolveRef.current = resolve;
+              setManualCaptcha({
+                enrollment,
+                captchaImage: fallbackData.manualFallback.captchaImage,
+                sessionData: fallbackData.manualFallback.sessionData,
+              });
+            });
+
+            setManualCaptcha(null);
+            manualResolveRef.current = null;
+
+            if (manualResult.action === "submit") {
+              // Submit with manual captcha text
+              const { data: submitData } = await supabase.functions.invoke("fetch-rgpv-results", {
+                body: {
+                  action: "submit",
+                  enrollment,
+                  semester,
+                  captchaAnswer: manualResult.text,
+                  sessionData: fallbackData.manualFallback.sessionData,
+                },
+              });
+
+              if (submitData?.success && submitData?.result) {
+                const result = submitData.result as StudentResult;
+                const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+                if (existingIdx >= 0) fetched[existingIdx] = result;
+                else fetched.push(result);
+                setLastResult({ name: result.name, status: result.status });
+                manualFallbackUsed = true;
+
+                if (submitData.nextSession) {
+                  sessionRef.current = submitData.nextSession.sessionData;
+                  captchaRef.current = submitData.nextSession.captchaImage;
+                }
+              }
+            }
+          }
+        } catch {
+          // fallback fetch failed, continue with error
         }
-        setCaptchaError(`${enrollment}: ${finalError}`);
-        sessionRef.current = null;
-        captchaRef.current = null;
+
+        if (!manualFallbackUsed) {
+          const existingIdx = fetched.findIndex(f => f.enrollment === enrollment);
+          const failedEntry = { enrollment, name: "Fetch Failed", sgpa: "N/A", cgpa: "N/A", status: "Error", subjects: [] as { code: string; grade: string }[] };
+          if (existingIdx >= 0) fetched[existingIdx] = failedEntry;
+          else fetched.push(failedEntry);
+          setCaptchaError(`${enrollment}: ${finalError}`);
+          sessionRef.current = null;
+          captchaRef.current = null;
+        }
       }
 
       setResults([...fetched]);
@@ -501,6 +562,13 @@ const Dashboard = () => {
         onCancel={handleCancel}
         lastResult={lastResult}
         completedCount={completedCount}
+        manualCaptcha={manualCaptcha}
+        onManualSubmit={(text) => {
+          manualResolveRef.current?.({ action: "submit", text });
+        }}
+        onManualSkip={() => {
+          manualResolveRef.current?.({ action: "skip" });
+        }}
       />
     </div>
   );
