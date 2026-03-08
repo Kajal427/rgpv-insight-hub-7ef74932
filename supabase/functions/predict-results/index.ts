@@ -91,7 +91,7 @@ ${studentDetails}
 
 Analyze each student's SGPA and grades. Predict their next semester SGPA and identify who needs help.`;
 
-    const models = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite", "google/gemini-3-flash-preview"];
+    const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
     let lastError = "";
 
     for (const model of models) {
@@ -137,7 +137,11 @@ Analyze each student's SGPA and grades. Predict their next semester SGPA and ide
     }
 
     // All models failed
-    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a minute." }), {
+    return new Response(JSON.stringify({
+      error: "Rate limit exceeded. Please try again in a minute.",
+      retry_after_seconds: 60,
+      details: lastError,
+    }), {
       status: 429,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
