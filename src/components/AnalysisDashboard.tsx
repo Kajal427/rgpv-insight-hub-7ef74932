@@ -173,19 +173,56 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
     setPredicting(true);
     setShowPrediction(true);
     setPrediction(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("predict-results", {
-        body: { results: validResults, program, semester },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setPrediction(data.prediction);
-    } catch (e: any) {
-      toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
-      setShowPrediction(false);
-    } finally {
-      setPredicting(false);
+
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 5000; // 5 seconds
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const { data, error } = await supabase.functions.invoke("predict-results", {
+          body: { results: validResults, program, semester },
+        });
+
+        // supabase.functions.invoke puts non-2xx response body in `data` when it can parse JSON
+        if (error) {
+          const msg = error.message || "";
+          // Check if the error context contains rate limit info
+          if (msg.includes("429") || msg.includes("Rate limit")) {
+            if (attempt < MAX_RETRIES) {
+              toast({ title: `Rate limited — retrying in ${RETRY_DELAY / 1000}s (attempt ${attempt}/${MAX_RETRIES})...` });
+              await new Promise(r => setTimeout(r, RETRY_DELAY));
+              continue;
+            }
+            throw new Error("Rate limit exceeded. Please wait a minute and try again.");
+          }
+          throw error;
+        }
+
+        if (data?.error) {
+          if (data.error.includes("Rate limit") || data.error.includes("429")) {
+            if (attempt < MAX_RETRIES) {
+              toast({ title: `Rate limited — retrying in ${RETRY_DELAY / 1000}s (attempt ${attempt}/${MAX_RETRIES})...` });
+              await new Promise(r => setTimeout(r, RETRY_DELAY));
+              continue;
+            }
+            throw new Error("Rate limit exceeded. Please wait a minute and try again.");
+          }
+          if (data.error.includes("402") || data.error.includes("credits")) {
+            throw new Error("AI credits exhausted. Please add credits to your workspace.");
+          }
+          throw new Error(data.error);
+        }
+
+        setPrediction(data.prediction);
+        return; // success, exit
+      } catch (e: any) {
+        if (attempt === MAX_RETRIES) {
+          toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
+          setShowPrediction(false);
+        }
+      }
     }
+    setPredicting(false);
   };
 
   if (validResults.length === 0) return null;
