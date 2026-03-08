@@ -165,7 +165,7 @@ export function DinoGame({ open, onClose }: { open: boolean; onClose: () => void
           s.speed += 0.001;
           s.spawnTimer += s.speed;
 
-          if (s.spawnTimer > 110 + Math.random() * 60) {
+          if (s.spawnTimer > 200 + Math.random() * 80) {
             s.obs.push({ x: W + 10, h: 22 + Math.random() * 35 });
             s.spawnTimer = 0;
           }
