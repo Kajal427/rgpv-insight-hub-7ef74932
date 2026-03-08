@@ -20,59 +20,76 @@ serve(async (req) => {
       });
     }
 
-    // Prepare summary data for AI (don't send all raw data, summarize it)
     const validResults = results.filter((r: any) => r.sgpa !== "N/A" && r.name !== "Fetch Failed");
     const sgpas = validResults.map((r: any) => parseFloat(r.sgpa)).filter((n: number) => !isNaN(n));
     const cgpas = validResults.map((r: any) => parseFloat(r.cgpa)).filter((n: number) => !isNaN(n));
     
     const avg = sgpas.reduce((a: number, b: number) => a + b, 0) / sgpas.length;
     const passCount = validResults.filter((r: any) => r.status?.toLowerCase().includes("pass")).length;
-    
-    // Get subject-wise performance
-    const subjectPerf: Record<string, { grades: string[] }> = {};
+
+    // Build per-student SGPA & subject detail for AI
+    const studentDetails = validResults.map((r: any) => {
+      const subjects = r.subjects?.map((s: any) => `${s.code}:${s.grade}`).join(", ") || "N/A";
+      return `${r.name} | Enrollment: ${r.enrollment} | SGPA: ${r.sgpa} | CGPA: ${r.cgpa} | Status: ${r.status} | Subjects: [${subjects}]`;
+    }).join("\n");
+
+    // Subject-wise fail summary
+    const subjectPerf: Record<string, { total: number; fails: number }> = {};
     validResults.forEach((r: any) => {
       r.subjects?.forEach((s: any) => {
-        if (!subjectPerf[s.code]) subjectPerf[s.code] = { grades: [] };
-        subjectPerf[s.code].grades.push(s.grade);
+        if (!subjectPerf[s.code]) subjectPerf[s.code] = { total: 0, fails: 0 };
+        subjectPerf[s.code].total++;
+        if (s.grade === "F") subjectPerf[s.code].fails++;
       });
     });
 
-    const subjectSummary = Object.entries(subjectPerf).map(([code, data]) => {
-      const grades = (data as any).grades as string[];
-      const failCount = grades.filter((g: string) => g === "F").length;
-      return `${code}: ${grades.length} students, ${failCount} failed`;
-    }).join("; ");
+    const subjectSummary = Object.entries(subjectPerf)
+      .map(([code, d]) => `${code}: ${d.total} students, ${d.fails} failed`)
+      .join("; ");
 
-    // Top 5 and bottom 5
-    const sorted = [...validResults].sort((a: any, b: any) => parseFloat(b.sgpa) - parseFloat(a.sgpa));
-    const top5 = sorted.slice(0, 5).map((r: any) => `${r.name} (SGPA: ${r.sgpa})`).join(", ");
-    const bottom5 = sorted.slice(-5).map((r: any) => `${r.name} (SGPA: ${r.sgpa})`).join(", ");
+    const systemPrompt = `You are an expert academic performance analyst for RGPV (Rajiv Gandhi Proudyogiki Vishwavidyalaya).
 
-    const systemPrompt = `You are an academic performance analyst for RGPV (Rajiv Gandhi Proudyogiki Vishwavidyalaya). 
-Analyze the provided student performance data and give a prediction report in Hindi-English mixed language that faculty can understand easily.
+Your job: Analyze each student's SGPA, CGPA, and subject grades to PREDICT their next semester performance.
 
-Your response should be structured with these sections:
-1. **📊 Overall Analysis** - Brief summary of class performance
-2. **📈 Predicted Trends** - What the next semester might look like based on current data
-3. **⚠️ At-Risk Students** - Students who might fail or perform poorly (based on low SGPA/grades)
-4. **🌟 Star Performers** - Students likely to excel
-5. **📝 Subject Insights** - Which subjects need more attention
-6. **💡 Recommendations** - Actionable suggestions for faculty
+Rules:
+- Use Hindi-English mixed language (Hinglish) that Indian faculty understand easily
+- Be data-driven: reference actual SGPA/CGPA numbers
+- For EACH student, give a short prediction line
+- Use emoji for visual appeal
 
-Keep it concise, practical, and data-driven. Use bullet points. Max 400 words.`;
+Structure your response EXACTLY like this:
 
-    const userPrompt = `Here is the data for ${program || "B.Tech."} Semester ${semester || "N/A"}:
+## 📊 Class Overview
+Brief 2-3 line summary with pass rate, avg SGPA
 
-- Total Students: ${validResults.length}
-- Pass: ${passCount}, Fail: ${validResults.length - passCount}
-- Pass Rate: ${((passCount / validResults.length) * 100).toFixed(1)}%
-- Average SGPA: ${avg.toFixed(2)}, Max: ${Math.max(...sgpas).toFixed(2)}, Min: ${Math.min(...sgpas).toFixed(2)}
-${cgpas.length > 0 ? `- Average CGPA: ${(cgpas.reduce((a: number, b: number) => a + b, 0) / cgpas.length).toFixed(2)}` : ""}
-- Subject Performance: ${subjectSummary}
-- Top 5: ${top5}
-- Bottom 5: ${bottom5}
+## 🔮 Student-wise Prediction (Next Semester)
+For each student, one line:
+- **Student Name** (SGPA: X.XX) → Predicted next SGPA: X.XX | Risk: 🟢Low/🟡Medium/🔴High | Remark
 
-Analyze this data and predict future performance trends.`;
+## ⚠️ At-Risk Students (Need Attention)
+List students with SGPA < 5 or multiple F grades with specific subject concerns
+
+## 🌟 Star Performers (Expected to Excel)  
+Top performers with their strengths
+
+## 📝 Subject-wise Insights
+Which subjects had most failures, which were easy
+
+## 💡 Faculty Recommendations
+3-4 actionable points
+
+Keep total response under 500 words. Be precise.`;
+
+    const userPrompt = `Program: ${program || "B.Tech."} | Semester: ${semester || "N/A"}
+Total: ${validResults.length} | Pass: ${passCount} | Fail: ${validResults.length - passCount} | Pass Rate: ${((passCount / validResults.length) * 100).toFixed(1)}%
+Avg SGPA: ${avg.toFixed(2)} | Max: ${Math.max(...sgpas).toFixed(2)} | Min: ${Math.min(...sgpas).toFixed(2)}
+${cgpas.length > 0 ? `Avg CGPA: ${(cgpas.reduce((a: number, b: number) => a + b, 0) / cgpas.length).toFixed(2)}` : ""}
+Subject Summary: ${subjectSummary}
+
+=== STUDENT DATA ===
+${studentDetails}
+
+Analyze each student's SGPA and grades. Predict their next semester SGPA and identify who needs help.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -81,7 +98,7 @@ Analyze this data and predict future performance trends.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
