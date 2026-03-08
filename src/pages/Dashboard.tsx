@@ -312,7 +312,6 @@ const Dashboard = () => {
             <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" disabled={queueState.running} />
           </div>
         </div>
-        </div>
 
         {/* Results Table */}
         {results.length > 0 && (
