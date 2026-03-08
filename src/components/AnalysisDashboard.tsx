@@ -48,6 +48,8 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
   const [predicting, setPredicting] = useState(false);
   const [prediction, setPrediction] = useState<string | null>(null);
   const [showPrediction, setShowPrediction] = useState(false);
+  const predictInFlightRef = useRef(false);
+  const [predictCooldownUntil, setPredictCooldownUntil] = useState<number | null>(null);
   const { toast } = useToast();
 
   const validResults = useMemo(
