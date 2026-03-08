@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Menu, X, LogIn, UserPlus } from "lucide-react";
+import { BarChart3, Menu, X, LogIn, UserPlus, Home } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export const Navbar = () => {
@@ -30,6 +30,11 @@ export const Navbar = () => {
           <span className="font-display text-lg font-bold text-white">
             RGPV Analyzer
           </span>
+        </Link>
+
+        {/* Center Home Icon */}
+        <Link to="/" className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-[hsl(240,50%,55%,0.15)] hover:bg-[hsl(240,50%,55%,0.3)] border border-[hsl(240,50%,55%,0.25)] transition-all duration-300 group/home">
+          <Home className="h-5 w-5 text-[hsl(220,60%,65%)] group-hover/home:text-white transition-colors" />
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
