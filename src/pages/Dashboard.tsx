@@ -189,9 +189,6 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
-        <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-foreground">Dashboard</h1>
-        </div>
 
         {/* Background Fetch Status Bar */}
         {queueState.running && !captchaOpen && (
