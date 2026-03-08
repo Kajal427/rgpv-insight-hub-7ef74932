@@ -95,12 +95,27 @@ export function ActivityHistory() {
           <Clock className="h-5 w-5 text-primary" /> Activity History
         </h2>
         {activities.length > 0 && (
-          <button
-            onClick={handleDeleteAll}
-            className="inline-flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Clear All
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 text-xs text-destructive hover:text-destructive/80 transition-colors">
+                <Trash2 className="h-3.5 w-3.5" /> Clear All
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear All Activity?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will permanently delete all your activity history. This action cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete All
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
         <div className="flex items-center justify-center py-8">
