@@ -45,6 +45,11 @@ interface AnalysisDashboardProps {
 }
 
 export function AnalysisDashboard({ results, program, semester }: AnalysisDashboardProps) {
+  const [predicting, setPredicting] = useState(false);
+  const [prediction, setPrediction] = useState<string | null>(null);
+  const [showPrediction, setShowPrediction] = useState(false);
+  const { toast } = useToast();
+
   const validResults = useMemo(
     () => results.filter((r) => r.status !== "Error" && r.name !== "Fetch Failed" && r.name !== "Skipped" && r.sgpa !== "N/A"),
     [results]
