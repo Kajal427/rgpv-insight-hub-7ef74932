@@ -338,18 +338,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           <div className="grid sm:grid-cols-2 gap-3">
             {topPerformers.map((r, i) => (
               <div key={r.enrollment} className="relative flex items-center gap-4 rounded-xl px-4 py-3 bg-secondary/40 hover:bg-secondary/60 transition-colors group overflow-hidden">
-                {i < 3 && (
-                  <div className={`absolute top-0 right-0 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-bl-lg ${
-                    i === 0 ? "bg-amber-500/20 text-amber-500" :
-                    i === 1 ? "bg-slate-400/20 text-slate-400" :
-                    "bg-orange-500/20 text-orange-500"
-                  }`}>
-                    {i === 0 ? "🥇 Gold" : i === 1 ? "🥈 Silver" : "🥉 Bronze"}
-                  </div>
-                )}
-                <span className={`text-2xl font-black font-display shrink-0 w-10 ${
-                  i === 0 ? "text-amber-500" : i === 1 ? "text-slate-400" : i === 2 ? "text-orange-500" : "text-muted-foreground"
-                }`}>
+                <span className="text-2xl font-black font-display shrink-0 w-10 text-muted-foreground">
                   {i + 1}
                 </span>
                 <div className="flex-1 min-w-0">
