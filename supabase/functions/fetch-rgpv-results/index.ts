@@ -374,14 +374,14 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 12;
+      const MAX_ATTEMPTS = 6;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 5;
-      const AI_BASE_DELAY_MS = 500;
+      const MAX_RATE_LIMIT_BACKOFFS = 3;
+      const AI_BASE_DELAY_MS = 200;
       const captchaModels = [
-        "google/gemini-2.5-pro",
-        "openai/gpt-5",
+        "google/gemini-2.5-flash-lite",
         "google/gemini-2.5-flash",
+        "google/gemini-2.5-pro",
       ];
 
       const CAPTCHA_PROMPT = `Read the text in this CAPTCHA image. The CAPTCHA is from result.rgpv.ac.in (Indian university).
@@ -475,7 +475,7 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
                     console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
                     break;
                   }
-                  const backoffMs = Math.min(20000, 2000 * (2 ** (rateLimitBackoffs - 1)));
+                  const backoffMs = Math.min(8000, 1000 * (2 ** (rateLimitBackoffs - 1)));
                   console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                   await wait(backoffMs);
                   continue;

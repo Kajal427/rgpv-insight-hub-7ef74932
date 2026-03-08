@@ -168,6 +168,19 @@ class FetchQueue {
             },
           });
 
+          // Handle "not found" as a valid (non-retryable) response
+          const notFoundMsg = data?.error || "";
+          const isNotFound = /not found/i.test(notFoundMsg);
+          if (isNotFound) {
+            const notFoundEntry: StudentResult = { enrollment, name: "Not Found", sgpa: "N/A", cgpa: "N/A", status: "Not Found", subjects: [] };
+            this.upsertResult(fetched, enrollment, notFoundEntry);
+            this.patch({ lastResult: { name: "Not Found", status: "Not Found" } });
+            succeeded = true;
+            this.sessionData = null;
+            this.captchaImage = null;
+            break;
+          }
+
           if (!error && data?.success) {
             const result = data.result as StudentResult;
             this.upsertResult(fetched, enrollment, result);
