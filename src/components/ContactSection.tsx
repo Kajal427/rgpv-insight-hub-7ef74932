@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 const contactInfo = [
-  { icon: Mail, label: "Email", value: "suppotrgpv@gmail.com", href: "mailto:suppotrgpv@gmail.com" },
+  { icon: Mail, label: "Email", value: "supportrgpv@gmail.com", href: "mailto:supportrgpv@gmail.com" },
   { icon: Phone, label: "Phone", value: "+91 98765 43210", href: "tel:+919876543210" },
   { icon: MapPin, label: "Address", value: "RGPV Campus, Bhopal, Madhya Pradesh, India", href: null },
 ];
