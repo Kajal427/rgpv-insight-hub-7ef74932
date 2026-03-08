@@ -472,7 +472,7 @@ Output ONLY the 5 characters with no other text.`;
                     console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: ${model} rate limited, trying next model`);
                     break;
                   }
-                  const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
+                  const backoffMs = Math.min(6000, 1000 * (2 ** (rateLimitBackoffs - 1)));
                   console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                   await wait(backoffMs);
                   continue;
