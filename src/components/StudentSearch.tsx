@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { Search, User, Award, BookOpen, Loader2, RefreshCw } from "lucide-react";
+import { Search, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Badge } from "@/components/ui/badge";
+import { GradeCard } from "@/components/GradeCard";
 
 type SubjectGrade = { code: string; grade: string };
 type StudentResult = {
