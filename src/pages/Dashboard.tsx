@@ -318,23 +318,23 @@ const Dashboard = () => {
         {results.length > 0 && (
           <div className={`${cardClasses} p-6 mb-8`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-white">
-                <BarChart3 className="h-5 w-5 text-[hsl(220,60%,65%)]" /> Fetched Results ({results.length} students)
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-foreground">
+                <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(230,15%,50%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={() => { setResults([]); localStorage.removeItem("rgpv_results"); }} disabled={queueState.running} title="Clear results">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => { setResults([]); localStorage.removeItem("rgpv_results"); }} disabled={queueState.running} title="Clear results">
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <div className="flex gap-2">
                 {results.some((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found") && !queueState.running && (
-                  <Button size="sm" className="gap-2 bg-red-500/20 text-red-400 hover:bg-red-500/30" onClick={retryFailed}>
+                  <Button size="sm" variant="destructive" className="gap-2" onClick={retryFailed}>
                     <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found").length})
                   </Button>
                 )}
-                <Button variant="outline" size="sm" className="gap-2 border-[hsl(230,20%,20%)] text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={exportToExcel}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
                   <Download className="h-4 w-4" /> Export Excel
                 </Button>
                 <Link to="/analysis">
-                  <Button variant="outline" size="sm" className="gap-2 border-[hsl(230,20%,20%)] text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]">
+                  <Button variant="outline" size="sm" className="gap-2">
                     <BarChart3 className="h-4 w-4" /> View Analysis
                   </Button>
                 </Link>
@@ -343,35 +343,31 @@ const Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[hsl(230,20%,20%)]">
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">#</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Enrollment</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Name</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">SGPA</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">CGPA</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Status</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Subjects</th>
+                  <tr className="border-b border-border">
+                    {["#", "Enrollment", "Name", "SGPA", "CGPA", "Status", "Subjects"].map((h) => (
+                      <th key={h} className="text-left py-3 px-4 text-muted-foreground font-medium">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={r.enrollment} className="border-b border-[hsl(230,20%,18%)] hover:bg-[hsl(240,50%,55%,0.05)] transition-colors">
-                      <td className="py-3 px-4 text-[hsl(230,15%,45%)]">{i + 1}</td>
-                      <td className="py-3 px-4 font-mono text-white">{r.enrollment}</td>
-                      <td className="py-3 px-4 text-white">{r.name}</td>
-                      <td className="py-3 px-4 font-semibold text-[hsl(220,60%,65%)]">{r.sgpa}</td>
-                      <td className="py-3 px-4 text-white">{r.cgpa}</td>
+                    <tr key={r.enrollment} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-4 text-muted-foreground">{i + 1}</td>
+                      <td className="py-3 px-4 font-mono text-foreground">{r.enrollment}</td>
+                      <td className="py-3 px-4 text-foreground">{r.name}</td>
+                      <td className="py-3 px-4 font-semibold text-primary">{r.sgpa}</td>
+                      <td className="py-3 px-4 text-foreground">{r.cgpa}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           r.status === "PASS" || r.status === "Pass"
-                            ? "bg-green-500/15 text-green-400"
+                            ? "bg-success/15 text-success"
                             : r.status === "Skipped"
-                            ? "bg-yellow-500/15 text-yellow-400"
+                            ? "bg-warning/15 text-warning"
                             : r.status === "Not Found"
-                            ? "bg-orange-500/15 text-orange-400"
+                            ? "bg-warning/15 text-warning"
                             : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
-                            ? "bg-red-500/15 text-red-400"
-                            : "bg-[hsl(230,20%,18%)] text-[hsl(230,15%,50%)]"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-muted text-muted-foreground"
                         }`}>
                           {r.status}
                         </span>
@@ -380,13 +376,13 @@ const Dashboard = () => {
                         {r.subjects && r.subjects.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {r.subjects.map((s, si) => (
-                              <span key={si} className="px-1.5 py-0.5 bg-[hsl(230,30%,18%)] rounded text-xs font-mono text-[hsl(230,15%,60%)]">
+                              <span key={si} className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono text-muted-foreground">
                                 {s.code}:{s.grade}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[hsl(230,15%,40%)] text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </td>
                     </tr>
