@@ -374,35 +374,30 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 6;
+      const MAX_ATTEMPTS = 12;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 3;
-      const AI_BASE_DELAY_MS = 200;
+      const MAX_RATE_LIMIT_BACKOFFS = 5;
+      const AI_BASE_DELAY_MS = 500;
       const captchaModels = [
-        "google/gemini-3-flash-preview",
+        "google/gemini-2.5-pro",
+        "openai/gpt-5",
         "google/gemini-2.5-flash",
       ];
 
-      const CAPTCHA_PROMPT = `You are reading a CAPTCHA image from an Indian university (RGPV) result portal.
+      const CAPTCHA_PROMPT = `Read the text in this CAPTCHA image. The CAPTCHA is from result.rgpv.ac.in (Indian university).
 
-CAPTCHA characteristics:
-- Contains exactly 5-6 alphanumeric characters (mix of uppercase letters and digits)
-- Has colored noise lines drawn across the text
-- Characters use a slightly distorted sans-serif font
-- Background may have light patterns or gradients
+Rules:
+- Exactly 5 characters (uppercase letters A-Z and digits 0-9)
+- Ignore all colored lines, noise, and background patterns
+- Focus ONLY on the main text characters
 
-Your task: Return your TOP 3 best guesses for the CAPTCHA text, separated by commas.
-Each guess should be 5-6 uppercase letters and digits only.
+Common misreads to avoid:
+- 0/O/D/Q can look similar - check curves carefully
+- 1/I/L/7 - check for serifs and angles  
+- 5/S, 8/B, 2/Z, 6/G, 9/Q
+- U/V, W/M
 
-Common confusions to watch for:
-- 0 (zero) vs O (letter O) vs D
-- 1 (one) vs I (letter I) vs L vs 7
-- 5 vs S, 8 vs B, 2 vs Z
-- 6 vs G, 9 vs Q
-- U vs V, W vs M (when rotated)
-
-Return ONLY three guesses separated by commas. Example: ABC123, A8C1Z3, ABC1Z3
-No spaces within each guess, no explanation, no other text.`;
+Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
