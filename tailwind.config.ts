@@ -96,6 +96,11 @@ export default {
           from: { opacity: "0" },
           to: { opacity: "1" },
         },
+        heroZoom: {
+          "0%": { transform: "scale(1.1) translateX(0)" },
+          "50%": { transform: "scale(1.15) translateX(-1%)" },
+          "100%": { transform: "scale(1.1) translateX(1%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
