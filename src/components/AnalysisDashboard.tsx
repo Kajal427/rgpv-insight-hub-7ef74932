@@ -169,6 +169,25 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
   const hasCgpaData = useMemo(() => cgpaDistribution.some(d => d.count > 0), [cgpaDistribution]);
 
+  const handlePredict = async () => {
+    setPredicting(true);
+    setShowPrediction(true);
+    setPrediction(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("predict-results", {
+        body: { results: validResults, program, semester },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setPrediction(data.prediction);
+    } catch (e: any) {
+      toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
+      setShowPrediction(false);
+    } finally {
+      setPredicting(false);
+    }
+  };
+
   if (validResults.length === 0) return null;
 
   return (
