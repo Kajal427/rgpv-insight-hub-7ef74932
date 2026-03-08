@@ -97,7 +97,7 @@ export function ActivityHistory() {
             const Icon = config.icon;
             const detail = getDetails(a.action, a.details || {});
             return (
-              <div key={a.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-secondary/40 transition-colors">
+              <div key={a.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-secondary/40 transition-colors group">
                 <div className={`shrink-0 ${config.color}`}>
                   <Icon className="h-4 w-4" />
                 </div>
@@ -106,6 +106,13 @@ export function ActivityHistory() {
                   {detail && <p className="text-xs text-muted-foreground truncate">{detail}</p>}
                 </div>
                 <span className="text-xs text-muted-foreground shrink-0">{formatTime(a.created_at)}</span>
+                <button
+                  onClick={() => handleDelete(a.id)}
+                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Delete activity"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             );
           })}
