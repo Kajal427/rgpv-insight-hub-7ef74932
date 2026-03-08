@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, User, Award, BookOpen, Loader2 } from "lucide-react";
+import { Search, User, Award, BookOpen, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,11 @@ type StudentResult = {
   subjects: SubjectGrade[];
 };
 
+type ManualFallback = {
+  captchaImage: string;
+  sessionData: any;
+};
+
 const cardClasses = "bg-[hsl(230,30%,14%)] border border-[hsl(230,20%,20%)] rounded-xl shadow-[0_8px_32px_-8px_hsl(240,50%,15%,0.3)]";
 
 const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
@@ -27,6 +32,9 @@ export function StudentSearch() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<StudentResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manualFallback, setManualFallback] = useState<ManualFallback | null>(null);
+  const [manualCaptcha, setManualCaptcha] = useState("");
+  const [submittingManual, setSubmittingManual] = useState(false);
   const { toast } = useToast();
 
   const handleSearch = async () => {
@@ -39,6 +47,7 @@ export function StudentSearch() {
     setLoading(true);
     setResult(null);
     setError(null);
+    setManualFallback(null);
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke("fetch-rgpv-results", {
@@ -54,6 +63,9 @@ export function StudentSearch() {
         const msg = data?.error || fnError?.message || "Failed to fetch";
         if (/not found/i.test(msg)) {
           setError("Student not found. Check enrollment number and try again.");
+        } else if (data?.manualFallback) {
+          setManualFallback(data.manualFallback);
+          setError("AI couldn't solve the CAPTCHA. Please solve it manually below.");
         } else {
           setError(msg);
         }
@@ -69,6 +81,42 @@ export function StudentSearch() {
       setError(err.message || "An error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleManualSubmit = async () => {
+    if (!manualFallback || !manualCaptcha.trim()) return;
+    setSubmittingManual(true);
+    const trimmed = enrollment.trim().toUpperCase();
+
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke("fetch-rgpv-results", {
+        body: {
+          action: "submit",
+          enrollment: trimmed,
+          semester,
+          captchaAnswer: manualCaptcha.trim(),
+          sessionData: manualFallback.sessionData,
+        },
+      });
+
+      if (data?.success && data?.result) {
+        setResult(data.result as StudentResult);
+        setManualFallback(null);
+        setError(null);
+      } else {
+        const msg = data?.error || fnError?.message || "Wrong CAPTCHA or fetch failed";
+        toast({ title: "Failed", description: msg, variant: "destructive" });
+        // If wrong captcha, try to get a new one by re-searching
+        if (/captcha/i.test(msg)) {
+          setManualCaptcha("");
+          handleSearch();
+        }
+      }
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSubmittingManual(false);
     }
   };
 
