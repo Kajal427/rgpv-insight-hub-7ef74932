@@ -3,13 +3,13 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download } from "lucide-react";
+import { Upload, FileSpreadsheet, User, Clock, LogOut, BarChart3, Mail, Building, Loader2, Download, FileUp } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Link, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CaptchaDialog } from "@/components/CaptchaDialog";
-import { AnalysisSection } from "@/components/AnalysisSection";
+import { AnalysisDashboard } from "@/components/AnalysisDashboard";
 import { ActivityHistory, logActivity } from "@/components/ActivityHistory";
 
 type SubjectGrade = { code: string; grade: string };
@@ -318,6 +318,36 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* Quick Actions */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <Link to="/upload-analysis" className="block">
+            <div className="bg-card border border-border rounded-xl p-6 card-glow hover:border-primary/40 transition-all group cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                  <FileUp className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold">Upload & Analyze Excel</h3>
+                  <p className="text-sm text-muted-foreground">Upload a previously exported result sheet for full analysis</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+          <Link to="/analysis" className="block">
+            <div className="bg-card border border-border rounded-xl p-6 card-glow hover:border-primary/40 transition-all group cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-info/10 group-hover:bg-info/20 transition-colors">
+                  <BarChart3 className="h-6 w-6 text-info" />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold">View Latest Analysis</h3>
+                  <p className="text-sm text-muted-foreground">See charts and insights from your last fetched results</p>
+                </div>
+              </div>
+            </div>
+          </Link>
+        </div>
+
         {/* CSV Upload */}
         <div className="bg-card border border-border rounded-xl p-6 card-glow mb-8">
           <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
@@ -432,7 +462,9 @@ const Dashboard = () => {
 
         {/* Analysis Section */}
         {results.length > 0 && (
-          <AnalysisSection results={results} program={program} semester={semester} />
+          <div className="mb-8">
+            <AnalysisDashboard results={results} program={program} semester={semester} />
+          </div>
         )}
       </div>
       <Footer />

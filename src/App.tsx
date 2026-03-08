@@ -8,6 +8,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Analysis from "./pages/Analysis";
+import UploadAnalysis from "./pages/UploadAnalysis";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/register" element={<Register />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/analysis" element={<Analysis />} />
+          <Route path="/upload-analysis" element={<UploadAnalysis />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
