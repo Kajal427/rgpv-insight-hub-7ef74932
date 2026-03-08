@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Upload, Download, BarChart3, LogIn, LogOut, UserPlus, Search, Activity, Trash2 } from "lucide-react";
+import { Clock, Upload, Download, BarChart3, LogIn, LogOut, UserPlus, Search, Activity, Trash2, ChevronDown } from "lucide-react";
 
 type ActivityEntry = {
   id: string;
@@ -53,6 +53,7 @@ function getDetails(action: string, details: Record<string, any>): string {
 export function ActivityHistory() {
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -102,22 +103,52 @@ export function ActivityHistory() {
             const Icon = config.icon;
             const detail = getDetails(a.action, a.details || {});
             return (
-              <div key={a.id} className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-secondary/40 transition-colors group">
-                <div className={`shrink-0 ${config.color}`}>
-                  <Icon className="h-4 w-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{config.label}</p>
-                  {detail && <p className="text-xs text-muted-foreground truncate">{detail}</p>}
-                </div>
-                <span className="text-xs text-muted-foreground shrink-0">{formatTime(a.created_at)}</span>
-                <button
-                  onClick={() => handleDelete(a.id)}
-                  className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
-                  title="Delete activity"
+              <div key={a.id} className="rounded-lg overflow-hidden">
+                <div
+                  onClick={() => setExpandedId(expandedId === a.id ? null : a.id)}
+                  className="flex items-center gap-3 py-2.5 px-3 hover:bg-secondary/40 transition-colors group cursor-pointer"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+                  <div className={`shrink-0 ${config.color}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{config.label}</p>
+                    {detail && <p className="text-xs text-muted-foreground truncate">{detail}</p>}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatTime(a.created_at)}</span>
+                  <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform ${expandedId === a.id ? "rotate-180" : ""}`} />
+                </div>
+                {expandedId === a.id && (
+                  <div className="px-3 pb-3 pt-1 bg-secondary/20 border-t border-border/50 animate-fade-in">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs mb-3">
+                      <div>
+                        <span className="text-muted-foreground">Action:</span>{" "}
+                        <span className="font-medium">{config.label}</span>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Time:</span>{" "}
+                        <span className="font-medium">
+                          {new Date(a.created_at).toLocaleString("en-IN", {
+                            day: "numeric", month: "short", year: "numeric",
+                            hour: "2-digit", minute: "2-digit", second: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      {Object.entries(a.details || {}).map(([key, value]) => (
+                        <div key={key}>
+                          <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}:</span>{" "}
+                          <span className="font-medium">{String(value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDelete(a.id); }}
+                      className="inline-flex items-center gap-1.5 text-xs text-destructive hover:underline"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete this activity
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
