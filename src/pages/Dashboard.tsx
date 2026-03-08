@@ -32,6 +32,7 @@ const Dashboard = () => {
     full_name: string; email: string; department: string; created_at: string; last_sign_in: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showProfile, setShowProfile] = useState(false);
 
   const [queueState, setQueueState] = useState<QueueState>(fetchQueue.getState());
   const [captchaOpen, setCaptchaOpen] = useState(false);
