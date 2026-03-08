@@ -71,34 +71,8 @@ export const ContactSection = () => {
           </p>
         </div>
 
-        <div className={`grid lg:grid-cols-5 gap-10 max-w-5xl mx-auto transition-all duration-700 delay-200 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-5">
-              {contactInfo.map((item, i) => (
-                <div
-                  key={item.label}
-                  className={`flex gap-4 items-start transition-all duration-500 ${visible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-4"}`}
-                  style={{ transitionDelay: `${300 + i * 100}ms` }}
-                >
-                  <div className="h-10 w-10 rounded-xl bg-[hsl(240,50%,55%,0.15)] flex items-center justify-center shrink-0">
-                    <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)]" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm text-white">{item.label}</p>
-                    {item.href ? (
-                      <a href={item.href} className="text-[hsl(230,15%,55%)] text-sm hover:text-[hsl(220,60%,65%)] transition-colors">
-                        {item.value}
-                      </a>
-                    ) : (
-                      <p className="text-[hsl(230,15%,55%)] text-sm">{item.value}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="lg:col-span-3 bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-4">
+        <div className={`max-w-3xl mx-auto transition-all duration-700 delay-200 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <form onSubmit={handleSubmit} className="bg-[hsl(230,30%,14%)] rounded-2xl border border-[hsl(230,20%,20%)] p-6 space-y-4">
             <div className="grid sm:grid-cols-2 gap-4">
               <Input name="name" placeholder="Your Name" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
               <Input name="email" type="email" placeholder="Your Email" required className="bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white placeholder:text-[hsl(230,15%,40%)] focus:border-[hsl(240,50%,55%)]" />
@@ -111,6 +85,21 @@ export const ContactSection = () => {
               )}
             </Button>
           </form>
+
+          <div className={`flex flex-wrap justify-center gap-6 mt-6 transition-all duration-500 delay-300 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+            {contactInfo.map((item) => (
+              <div key={item.label} className="flex items-center gap-2">
+                <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)]" />
+                {item.href ? (
+                  <a href={item.href} className="text-[hsl(230,15%,55%)] text-sm hover:text-[hsl(220,60%,65%)] transition-colors">
+                    {item.value}
+                  </a>
+                ) : (
+                  <span className="text-[hsl(230,15%,55%)] text-sm">{item.value}</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
