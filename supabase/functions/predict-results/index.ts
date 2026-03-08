@@ -91,44 +91,54 @@ ${studentDetails}
 
 Analyze each student's SGPA and grades. Predict their next semester SGPA and identify who needs help.`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        stream: false,
-      }),
-    });
+    const models = ["google/gemini-2.5-flash", "google/gemini-2.5-flash-lite", "google/gemini-3-flash-preview"];
+    let lastError = "";
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a minute." }), {
-          status: 429,
+    for (const model of models) {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          stream: false,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const prediction = data.choices?.[0]?.message?.content || "Unable to generate prediction.";
+        return new Response(JSON.stringify({ prediction }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+
+      const t = await response.text();
+      lastError = `${model}: ${response.status} ${t}`;
+      console.warn("Model failed:", lastError);
+
       if (response.status === 402) {
         return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      throw new Error("AI gateway error");
+
+      // Try next model for rate limits or other errors
+      if (response.status === 429) continue;
+      // For non-rate-limit errors, still try next model
+      continue;
     }
 
-    const data = await response.json();
-    const prediction = data.choices?.[0]?.message?.content || "Unable to generate prediction.";
-
-    return new Response(JSON.stringify({ prediction }), {
+    // All models failed
+    return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a minute." }), {
+      status: 429,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
