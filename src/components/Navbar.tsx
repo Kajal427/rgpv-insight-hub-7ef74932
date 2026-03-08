@@ -58,7 +58,7 @@ export const Navbar = () => {
         </Link>
 
         {/* Center Home Icon */}
-        <Link to="/" className="absolute left-1/2 -translate-x-1/2 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-[hsl(240,50%,55%,0.15)] hover:bg-[hsl(240,50%,55%,0.3)] border border-[hsl(240,50%,55%,0.25)] transition-all duration-300 group/home">
+        <Link to="/" className="absolute left-1/2 -translate-x-1/2 -ml-16 hidden md:flex items-center justify-center h-10 w-10 rounded-full bg-[hsl(240,50%,55%,0.15)] hover:bg-[hsl(240,50%,55%,0.3)] border border-[hsl(240,50%,55%,0.25)] transition-all duration-300 group/home">
           <Home className="h-5 w-5 text-[hsl(220,60%,65%)] group-hover/home:text-white transition-colors" />
         </Link>
 
