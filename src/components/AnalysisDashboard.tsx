@@ -452,6 +452,35 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Prediction Modal */}
+      {showPrediction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !predicting && setShowPrediction(false)}>
+          <div className="bg-card border border-border rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                <h3 className="font-display font-semibold text-lg text-card-foreground">AI Result Prediction</h3>
+              </div>
+              <button onClick={() => setShowPrediction(false)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto max-h-[65vh]">
+              {predicting ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3">
+                  <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground">AI analyzing student data...</p>
+                </div>
+              ) : prediction ? (
+                <div className="prose prose-sm max-w-none text-card-foreground [&_h2]:font-display [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-4 [&_h2]:mb-2 [&_strong]:text-foreground [&_li]:text-sm [&_p]:text-sm [&_p]:text-muted-foreground [&_li]:text-muted-foreground whitespace-pre-wrap">
+                  {prediction}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
