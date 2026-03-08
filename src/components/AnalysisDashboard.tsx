@@ -214,11 +214,13 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
         }
 
         setPrediction(data.prediction);
+        setPredicting(false);
         return; // success, exit
       } catch (e: any) {
         if (attempt === MAX_RETRIES) {
           toast({ title: "Prediction failed", description: e.message || "Try again later", variant: "destructive" });
           setShowPrediction(false);
+          setPredicting(false);
         }
       }
     }
