@@ -374,18 +374,38 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 10;
+      const MAX_ATTEMPTS = 6;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-      const MAX_RATE_LIMIT_BACKOFFS = 4;
-      const AI_BASE_DELAY_MS = 300;
+      const MAX_RATE_LIMIT_BACKOFFS = 3;
+      const AI_BASE_DELAY_MS = 200;
       const captchaModels = [
+        "google/gemini-3-flash-preview",
         "google/gemini-2.5-flash",
-        "google/gemini-2.5-pro",
       ];
+
+      const CAPTCHA_PROMPT = `You are reading a CAPTCHA image from an Indian university (RGPV) result portal.
+
+CAPTCHA characteristics:
+- Contains exactly 5-6 alphanumeric characters (mix of uppercase letters and digits)
+- Has colored noise lines drawn across the text
+- Characters use a slightly distorted sans-serif font
+- Background may have light patterns or gradients
+
+Your task: Return your TOP 3 best guesses for the CAPTCHA text, separated by commas.
+Each guess should be 5-6 uppercase letters and digits only.
+
+Common confusions to watch for:
+- 0 (zero) vs O (letter O) vs D
+- 1 (one) vs I (letter I) vs L vs 7
+- 5 vs S, 8 vs B, 2 vs Z
+- 6 vs G, 9 vs Q
+- U vs V, W vs M (when rotated)
+
+Return ONLY three guesses separated by commas. Example: ABC123, A8C1Z3, ABC1Z3
+No spaces within each guess, no explanation, no other text.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
-      // Preserve last known captcha/session for manual fallback
       let lastKnownCaptcha: string | null = existingCaptcha || null;
       let lastKnownSession: typeof session = existingSession || null;
 
@@ -426,8 +446,8 @@ Deno.serve(async (req) => {
             lastKnownSession = session;
           }
 
-          // Step 2: AI solve captcha (fallback models)
-          let answer = "";
+          // Step 2: AI solve captcha — multi-guess approach
+          let guesses: string[] = [];
           let lastAiError = "";
 
           for (const model of captchaModels) {
@@ -445,17 +465,17 @@ Deno.serve(async (req) => {
                     role: "user",
                     content: [
                       { type: "image_url", image_url: { url: captcha } },
-                      { type: "text", text: "This is a CAPTCHA image containing 4-6 alphanumeric characters (uppercase letters and digits). Read the characters carefully. Common confusions: 0 vs O, 1 vs I vs L, 5 vs S, 8 vs B, 2 vs Z. Return ONLY the exact characters you see, uppercase letters and digits only. No spaces, no punctuation, no explanation." },
+                      { type: "text", text: CAPTCHA_PROMPT },
                     ],
                   }],
-                  max_tokens: 16,
-                  temperature: 0,
+                  max_tokens: 50,
+                  temperature: 0.2,
                 }),
               }, 30000);
 
               if (aiResp.status === 429) {
                 rateLimitBackoffs += 1;
-                const backoffMs = Math.min(20000, 3000 * (2 ** (rateLimitBackoffs - 1)));
+                const backoffMs = Math.min(15000, 2000 * (2 ** (rateLimitBackoffs - 1)));
                 console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: AI rate limited on ${model}, waiting ${backoffMs}ms`);
                 await wait(backoffMs);
                 continue;
@@ -473,26 +493,33 @@ Deno.serve(async (req) => {
 
               const aiData = await aiResp.json();
               const rawText = extractAiText(aiData);
-              const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, "");
+              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}"`);
 
-              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: model=${model}, raw="${rawText}", cleaned="${cleaned}"`);
-
-              if (cleaned.length >= 4 && cleaned.length <= 8) {
-                answer = cleaned;
+              // Parse multiple guesses from comma-separated response
+              const parts = rawText.split(/[,\s]+/).map((p: string) => p.toUpperCase().replace(/[^A-Z0-9]/g, "")).filter((p: string) => p.length >= 4 && p.length <= 8);
+              
+              if (parts.length > 0) {
+                guesses = parts.slice(0, 3); // Take up to 3 guesses
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guesses=[${guesses.join(", ")}]`);
               }
               break;
             }
 
-            if (answer) break;
+            if (guesses.length > 0) break;
           }
 
-          if (!answer) {
-            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI answer. ${lastAiError}`);
+          if (guesses.length === 0) {
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guesses. ${lastAiError}`);
+            // Get fresh CAPTCHA for next attempt
             session = null;
             captcha = null;
-            await wait(300);
+            await wait(200);
             continue;
           }
+
+          // Step 3: Try each guess
+          let succeeded = false;
+          for (const guess of guesses) {
 
           // Step 3: Submit
           const submitBody = new URLSearchParams();
