@@ -169,7 +169,12 @@ export function CaptchaDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex gap-2 sm:justify-between">
+          {onMinimize && (
+            <Button variant="outline" size="sm" className="gap-2" onClick={onMinimize}>
+              <EyeOff className="h-4 w-4" /> Minimize
+            </Button>
+          )}
           <Button variant="destructive" size="sm" className="gap-2" onClick={onCancel}>
             <StopCircle className="h-4 w-4" /> Stop Fetching
           </Button>
