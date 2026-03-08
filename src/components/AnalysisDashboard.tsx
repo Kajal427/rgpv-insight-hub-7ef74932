@@ -91,14 +91,22 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
   const stats = useMemo(() => {
     if (validResults.length === 0) return null;
     const sgpas = validResults.map((r) => parseFloat(r.sgpa)).filter((n) => !isNaN(n));
+    const cgpas = validResults.map((r) => parseFloat(r.cgpa)).filter((n) => !isNaN(n));
     const avg = sgpas.reduce((a, b) => a + b, 0) / sgpas.length;
     const passCount = passFailData[0].value;
     const median = [...sgpas].sort((a, b) => a - b)[Math.floor(sgpas.length / 2)];
+    const cgpaAvg = cgpas.length > 0 ? cgpas.reduce((a, b) => a + b, 0) / cgpas.length : null;
+    const cgpaMax = cgpas.length > 0 ? Math.max(...cgpas) : null;
+    const cgpaMin = cgpas.length > 0 ? Math.min(...cgpas) : null;
     return {
       avg: avg.toFixed(2), max: Math.max(...sgpas).toFixed(2), min: Math.min(...sgpas).toFixed(2),
       median: median.toFixed(2), total: validResults.length,
       passPercent: ((passCount / validResults.length) * 100).toFixed(1),
       failPercent: (((validResults.length - passCount) / validResults.length) * 100).toFixed(1),
+      cgpaAvg: cgpaAvg?.toFixed(2) ?? "N/A",
+      cgpaMax: cgpaMax?.toFixed(2) ?? "N/A",
+      cgpaMin: cgpaMin?.toFixed(2) ?? "N/A",
+      hasCgpa: cgpas.length > 0,
     };
   }, [validResults, passFailData]);
 
@@ -135,6 +143,24 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
     }));
   }, [validResults]);
 
+  const cgpaDistribution = useMemo(() => {
+    const buckets: Record<string, number> = { "0-4": 0, "4-5": 0, "5-6": 0, "6-7": 0, "7-8": 0, "8-9": 0, "9-10": 0 };
+    validResults.forEach((r) => {
+      const cgpa = parseFloat(r.cgpa);
+      if (isNaN(cgpa)) return;
+      if (cgpa < 4) buckets["0-4"]++;
+      else if (cgpa < 5) buckets["4-5"]++;
+      else if (cgpa < 6) buckets["5-6"]++;
+      else if (cgpa < 7) buckets["6-7"]++;
+      else if (cgpa < 8) buckets["7-8"]++;
+      else if (cgpa < 9) buckets["8-9"]++;
+      else buckets["9-10"]++;
+    });
+    return Object.entries(buckets).map(([range, count]) => ({ range, count }));
+  }, [validResults]);
+
+  const hasCgpaData = useMemo(() => cgpaDistribution.some(d => d.count > 0), [cgpaDistribution]);
+
   if (validResults.length === 0) return null;
 
   return (
@@ -155,7 +181,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { label: "Total Students", value: stats.total, icon: Users, accent: "bg-blue-500/20" },
                 { label: "Average SGPA", value: stats.avg, icon: TrendingUp, accent: "bg-teal-500/20" },
@@ -163,6 +189,11 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                 { label: "Lowest SGPA", value: stats.min, icon: Target, accent: "bg-red-500/20" },
                 { label: "Pass Rate", value: `${stats.passPercent}%`, icon: Zap, accent: "bg-green-500/20" },
                 { label: "Median SGPA", value: stats.median, icon: GraduationCap, accent: "bg-purple-500/20" },
+                ...(stats.hasCgpa ? [
+                  { label: "Average CGPA", value: stats.cgpaAvg, icon: TrendingUp, accent: "bg-cyan-500/20" },
+                  { label: "Highest CGPA", value: stats.cgpaMax, icon: Trophy, accent: "bg-orange-500/20" },
+                  { label: "Lowest CGPA", value: stats.cgpaMin, icon: Target, accent: "bg-pink-500/20" },
+                ] : []),
               ].map((s) => (
                 <div key={s.label} className={`${s.accent} backdrop-blur-sm rounded-xl p-4 border border-white/10`}>
                   <div className="flex items-center gap-2 mb-2">
@@ -292,6 +323,37 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
                     <Radar name="Avg Grade" dataKey="avgGrade" stroke="hsl(38, 92%, 50%)" fill="hsl(38, 92%, 50%)" fillOpacity={0.25} strokeWidth={2} />
                     <Tooltip contentStyle={tooltipStyle} />
                   </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* CGPA Distribution */}
+        {hasCgpaData && (
+          <Card className="card-glow border-border/50 overflow-hidden">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full bg-cyan-500" />
+                CGPA Distribution
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cgpaDistribution} barCategoryGap="20%">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
+                    <XAxis dataKey="range" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    <defs>
+                      <linearGradient id="cgpaGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="hsl(200, 80%, 50%)" />
+                        <stop offset="100%" stopColor="hsl(200, 80%, 30%)" />
+                      </linearGradient>
+                    </defs>
+                    <Bar dataKey="count" fill="url(#cgpaGradient)" radius={[8, 8, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
