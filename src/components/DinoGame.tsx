@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { Bird } from "lucide-react";
 
 const CANVAS_W = 600;
@@ -166,15 +167,19 @@ export function DinoGame({ open, onClose }: { open: boolean; onClose: () => void
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-fit p-4 gap-2">
+      <DialogContent className="sm:max-w-[650px] p-4 gap-2" aria-describedby="dino-game-desc">
         <DialogTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
           <Bird className="h-4 w-4 text-primary" /> Bird Runner
         </DialogTitle>
+        <VisuallyHidden>
+          <DialogDescription id="dino-game-desc">A simple bird runner game. Press space or tap to jump over obstacles.</DialogDescription>
+        </VisuallyHidden>
         <canvas
           ref={canvasRef}
           width={CANVAS_W}
           height={CANVAS_H}
-          className="rounded-lg border border-border cursor-pointer"
+          style={{ width: CANVAS_W, height: CANVAS_H, maxWidth: "100%" }}
+          className="rounded-lg border border-border cursor-pointer block mx-auto"
           onClick={jump}
         />
         <p className="text-[10px] text-muted-foreground text-center">SPACE / TAP to jump</p>
