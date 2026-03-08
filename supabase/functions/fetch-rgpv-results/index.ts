@@ -562,6 +562,8 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
                     formFields: Object.keys(retryFields).length > 0 ? retryFields : session!.formFields,
                     resultPageUrl: step3.finalUrl,
                   };
+                  lastKnownCaptcha = captcha;
+                  lastKnownSession = session;
                 } catch {
                   session = null;
                   captcha = null;
