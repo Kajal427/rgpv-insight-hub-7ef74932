@@ -358,7 +358,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
               </div>
             </CardContent>
           </Card>
-        )
+        )}
       </div>
 
       {/* Subject-wise Grade Distribution - Full Width */}
