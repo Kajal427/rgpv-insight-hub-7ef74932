@@ -76,6 +76,13 @@ export function ActivityHistory() {
     setActivities((prev) => prev.filter((a) => a.id !== id));
   };
 
+  const handleDeleteAll = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase.from("activity_log").delete().eq("user_id", session.user.id);
+    setActivities([]);
+  };
+
   if (loading) {
     return (
       <div className="bg-card border border-border rounded-xl p-6 card-glow">
