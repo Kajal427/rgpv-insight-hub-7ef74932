@@ -231,7 +231,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
     <div className="space-y-8 animate-fade-in">
       {/* Hero Stats Banner */}
       {stats && (
-        <div className="relative overflow-hidden rounded-2xl hero-gradient p-8 text-white">
+        <div data-chart-card className="relative overflow-hidden rounded-2xl hero-gradient p-8 text-white">
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyek0zNiAyNHYySDI0di0yaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-40" />
           <div className="relative z-10">
             <div className="flex items-center justify-between">
@@ -287,7 +287,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
       {/* Charts Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Histogram — Marks Distribution */}
-        <Card className="card-glow border-border/50 overflow-hidden">
+        <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary" />
@@ -316,7 +316,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
         </Card>
 
         {/* Pass/Fail Donut */}
-        <Card className="card-glow border-border/50 overflow-hidden">
+        <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-success" />
@@ -352,7 +352,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
         </Card>
 
         {/* Semester Performance - Line Chart */}
-        <Card className="card-glow border-border/50 overflow-hidden">
+        <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-info" />
@@ -376,7 +376,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
         {/* Subject Radar */}
         {subjectRadarData.length > 2 && (
-          <Card className="card-glow border-border/50 overflow-hidden">
+          <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-display flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-warning" />
@@ -401,7 +401,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
         {/* CGPA Distribution */}
         {hasCgpaData && (
-          <Card className="card-glow border-border/50 overflow-hidden">
+          <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-display flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-cyan-500" />
@@ -433,7 +433,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
       {/* Subject-wise Grade Distribution - Full Width */}
       {subjectGradeData.length > 0 && (
-        <Card className="card-glow border-border/50 overflow-hidden">
+        <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-accent-foreground" />
@@ -460,7 +460,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
       )}
 
       {/* Top Performers */}
-      <Card className="card-glow border-border/50 overflow-hidden">
+      <Card data-chart-card className="card-glow border-border/50 overflow-hidden">
         <CardHeader>
           <CardTitle className="text-base font-display flex items-center gap-2">
             <Award className="h-5 w-5 text-warning" /> Top 10 Performers

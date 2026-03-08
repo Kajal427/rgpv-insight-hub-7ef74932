@@ -1,17 +1,23 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { AnalysisDashboard, type StudentResult } from "@/components/AnalysisDashboard";
 import { Button } from "@/components/ui/button";
-import { Download, BarChart3, Upload, FileText } from "lucide-react";
+import { Download, BarChart3, Upload, FileText, ImageDown, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
+import { useToast } from "@/hooks/use-toast";
 
 const GRADE_POINTS: Record<string, number> = { "O": 10, "A+": 9, "A": 8, "B+": 7, "B": 6, "C+": 5, "C": 4, "D": 3, "F": 0 };
 
 const Analysis = () => {
   const [results, setResults] = useState<StudentResult[]>([]);
   const [meta, setMeta] = useState<{ program: string; semester: string; fetchedAt: string } | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const chartsRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const stored = localStorage.getItem("rgpv_results");
@@ -67,7 +73,6 @@ const Analysis = () => {
     const sortedSgpas = [...sgpas].sort((a, b) => a - b);
     const median = sortedSgpas[Math.floor(sortedSgpas.length / 2)];
 
-    // 1. Overview
     const overviewData = [
       { Metric: "Program", Value: meta?.program || "N/A" },
       { Metric: "Semester", Value: meta?.semester || "N/A" },
@@ -94,7 +99,6 @@ const Analysis = () => {
     wsOverview["!cols"] = [{ wch: 22 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(wb, wsOverview, "Overview");
 
-    // 2. SGPA Distribution
     const sgpaBuckets: Record<string, number> = { "0-4": 0, "4-5": 0, "5-6": 0, "6-7": 0, "7-8": 0, "8-9": 0, "9-10": 0 };
     sgpas.forEach((s) => {
       if (s < 4) sgpaBuckets["0-4"]++;
@@ -112,7 +116,6 @@ const Analysis = () => {
     wsDist["!cols"] = [{ wch: 14 }, { wch: 16 }, { wch: 14 }];
     XLSX.utils.book_append_sheet(wb, wsDist, "SGPA Distribution");
 
-    // 3. Subject Analysis
     const subjectMap: Record<string, { grades: Record<string, number>; total: number; points: number }> = {};
     validResults.forEach((r) => {
       r.subjects?.forEach((s) => {
@@ -123,10 +126,7 @@ const Analysis = () => {
       });
     });
     const subjectData = Object.entries(subjectMap).map(([code, data]) => ({
-      "Subject Code": code,
-      "Students": data.total,
-      "Avg Grade Points": (data.points / data.total).toFixed(2),
-      ...data.grades,
+      "Subject Code": code, "Students": data.total, "Avg Grade Points": (data.points / data.total).toFixed(2), ...data.grades,
     }));
     if (subjectData.length > 0) {
       const wsSub = XLSX.utils.json_to_sheet(subjectData);
@@ -134,7 +134,6 @@ const Analysis = () => {
       XLSX.utils.book_append_sheet(wb, wsSub, "Subject Analysis");
     }
 
-    // 4. Top Performers
     const topPerformers = [...validResults].sort((a, b) => parseFloat(b.sgpa) - parseFloat(a.sgpa)).slice(0, 20);
     const topData = topPerformers.map((r, i) => ({
       Rank: i + 1, Enrollment: r.enrollment, Name: r.name, SGPA: r.sgpa, CGPA: r.cgpa, Status: r.status,
@@ -143,7 +142,6 @@ const Analysis = () => {
     wsTop["!cols"] = [{ wch: 6 }, { wch: 18 }, { wch: 25 }, { wch: 8 }, { wch: 8 }, { wch: 8 }];
     XLSX.utils.book_append_sheet(wb, wsTop, "Top Performers");
 
-    // 5. All Results
     const fullData = validResults.map((r, i) => {
       const row: Record<string, string | number> = {
         "#": i + 1, Enrollment: r.enrollment, Name: r.name, SGPA: r.sgpa, CGPA: r.cgpa, Status: r.status,
@@ -158,6 +156,69 @@ const Analysis = () => {
     XLSX.utils.book_append_sheet(wb, wsFull, "All Results");
 
     XLSX.writeFile(wb, `RGPV_Analysis_Report_${meta?.program || ""}_Sem${meta?.semester || ""}.xlsx`);
+  };
+
+  const exportPdfWithCharts = async () => {
+    if (!chartsRef.current) return;
+    setExportingPdf(true);
+    toast({ title: "Generating PDF...", description: "Capturing all charts, please wait." });
+
+    try {
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+
+      // Title page
+      pdf.setFontSize(24);
+      pdf.setTextColor(30, 41, 59);
+      pdf.text("RGPV Result Analysis Report", pageW / 2, 40, { align: "center" });
+      pdf.setFontSize(14);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(
+        `${meta?.program || "N/A"} — Semester ${meta?.semester || "N/A"} • ${validResults.length} Students`,
+        pageW / 2, 52, { align: "center" }
+      );
+      pdf.text(`Generated: ${new Date().toLocaleString("en-IN")}`, pageW / 2, 60, { align: "center" });
+
+      // Capture each section with data-chart-card attribute
+      const cards = chartsRef.current.querySelectorAll<HTMLElement>("[data-chart-card]");
+
+      if (cards.length === 0) {
+        // Fallback: capture the entire dashboard
+        const canvas = await html2canvas(chartsRef.current, {
+          scale: 2, backgroundColor: "#0d1117", useCORS: true, logging: false,
+        });
+        const imgData = canvas.toDataURL("image/png");
+        const imgW = pageW - margin * 2;
+        const imgH = (canvas.height / canvas.width) * imgW;
+        pdf.addPage();
+        const finalH = Math.min(imgH, pageH - margin * 2);
+        const finalW = imgH > pageH - margin * 2 ? (canvas.width / canvas.height) * finalH : imgW;
+        pdf.addImage(imgData, "PNG", (pageW - finalW) / 2, margin, finalW, finalH, undefined, "FAST");
+      } else {
+        for (let i = 0; i < cards.length; i++) {
+          const canvas = await html2canvas(cards[i], {
+            scale: 2, backgroundColor: "#0d1117", useCORS: true, logging: false,
+          });
+          const imgData = canvas.toDataURL("image/png");
+          const imgW = pageW - margin * 2;
+          const imgH = (canvas.height / canvas.width) * imgW;
+          pdf.addPage();
+          const finalH = Math.min(imgH, pageH - margin * 2);
+          const finalW = imgH > pageH - margin * 2 ? (canvas.width / canvas.height) * finalH : imgW;
+          pdf.addImage(imgData, "PNG", (pageW - finalW) / 2, margin, finalW, finalH, undefined, "FAST");
+        }
+      }
+
+      pdf.save(`RGPV_Analysis_Charts_${meta?.program || ""}_Sem${meta?.semester || ""}.pdf`);
+      toast({ title: "PDF Downloaded!", description: "Report with all charts saved successfully." });
+    } catch (err) {
+      console.error("PDF export error:", err);
+      toast({ title: "Export failed", description: "Could not generate PDF.", variant: "destructive" });
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   if (validResults.length === 0) {
@@ -205,13 +266,19 @@ const Analysis = () => {
             <Button variant="outline" onClick={exportToExcel} className="gap-2">
               <Download className="h-4 w-4" /> Export Data
             </Button>
-            <Button onClick={exportAnalysisReport} className="gap-2">
+            <Button variant="outline" onClick={exportAnalysisReport} className="gap-2">
               <FileText className="h-4 w-4" /> Download Report
+            </Button>
+            <Button onClick={exportPdfWithCharts} disabled={exportingPdf} className="gap-2">
+              {exportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
+              {exportingPdf ? "Generating..." : "Download with Charts"}
             </Button>
           </div>
         </div>
 
-        <AnalysisDashboard results={results} program={meta?.program} semester={meta?.semester} />
+        <div ref={chartsRef}>
+          <AnalysisDashboard results={results} program={meta?.program} semester={meta?.semester} />
+        </div>
       </div>
       <Footer />
     </div>
