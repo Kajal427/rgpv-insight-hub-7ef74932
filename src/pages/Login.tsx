@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { BarChart3, ArrowLeft, Mail, Lock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { logActivity } from "@/components/ActivityHistory";
 
 const Login = () => {
   const { toast } = useToast();
@@ -20,6 +21,7 @@ const Login = () => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      await logActivity("login");
       toast({ title: "Login Successful!" });
       navigate("/dashboard");
     } catch (error: any) {
