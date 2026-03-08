@@ -37,8 +37,6 @@ export const Navbar = () => {
           <span className="font-display text-lg font-bold text-foreground">
             RGPV Analyzer
           </span>
-            RGPV Analyzer
-          </span>
         </Link>
 
         {/* Desktop Nav */}
