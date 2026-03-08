@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, XCircle, StopCircle, Keyboard, SkipForward, Send } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, StopCircle, Keyboard, SkipForward, Send, EyeOff } from "lucide-react";
 
 export interface ManualCaptchaData {
   enrollment: string;
