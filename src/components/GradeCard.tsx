@@ -1,8 +1,9 @@
 import { User, Award, BookOpen, Download, TrendingUp, BarChart3 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import html2canvas from "html2canvas";
 import jspdf from "jspdf";
 
@@ -56,6 +57,7 @@ function getSgpaColor(sgpa: number) {
 
 export function GradeCard({ result, program, semester }: GradeCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [showPie, setShowPie] = useState(false);
   const pieData = getGradeDistribution(result.subjects);
   const sgpaNum = parseFloat(result.sgpa) || 0;
   const cgpaNum = parseFloat(result.cgpa) || 0;
@@ -119,61 +121,70 @@ export function GradeCard({ result, program, semester }: GradeCardProps) {
           ))}
         </div>
 
-        {/* Grade Distribution Pie Chart */}
-        {result.subjects.length > 0 && (
-          <div className="px-6 pb-5">
-            <div className="bg-muted/30 rounded-xl p-4 border border-border max-w-sm mx-auto">
-              <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-primary" /> Grade Distribution
-              </h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={3} dataKey="value" stroke="none">
-                    {pieData.map((entry, idx) => (
-                      <Cell key={idx} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string) => [`${value} subject(s)`, `Grade ${name}`]}
-                    contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex flex-wrap justify-center gap-3 mt-2">
-                {pieData.map((d) => (
-                  <div key={d.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-                    {d.name} ({d.value})
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Subject Table */}
+        {/* Subjects + Optional Pie Chart */}
         {result.subjects.length > 0 && (
           <div className="px-6 pb-6">
-            <h4 className="text-sm font-semibold text-foreground mb-3">All Subjects</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-              {result.subjects.map((s, i) => {
-                const gradeColor = GRADE_COLORS[s.grade.toUpperCase()] || "hsl(230,15%,40%)";
-                return (
-                  <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3 border border-border gap-3">
-                    <span className="font-mono text-sm text-foreground truncate">{s.code}</span>
-                    <span
-                      className="font-mono text-xs font-bold px-2.5 py-1 rounded-md shrink-0"
-                      style={{
-                        backgroundColor: gradeColor.replace(")", ", 0.15)").replace("hsl(", "hsla("),
-                        color: gradeColor,
-                        border: `1px solid ${gradeColor.replace(")", ", 0.3)").replace("hsl(", "hsla(")}`,
-                      }}
-                    >
-                      {s.grade}
-                    </span>
+            {/* Toggle for pie chart */}
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-foreground">All Subjects</h4>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-xs text-muted-foreground">Show Chart</span>
+                <Switch checked={showPie} onCheckedChange={setShowPie} />
+              </label>
+            </div>
+
+            <div className={`grid ${showPie ? "md:grid-cols-[1fr_280px]" : "grid-cols-1"} gap-4`}>
+              {/* Left: Subject List */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {result.subjects.map((s, i) => {
+                  const gradeColor = GRADE_COLORS[s.grade.toUpperCase()] || "hsl(230,15%,40%)";
+                  return (
+                    <div key={i} className="flex items-center justify-between bg-muted/50 rounded-lg px-4 py-3 border border-border gap-3">
+                      <span className="font-mono text-sm text-foreground truncate">{s.code}</span>
+                      <span
+                        className="font-mono text-xs font-bold px-2.5 py-1 rounded-md shrink-0"
+                        style={{
+                          backgroundColor: gradeColor.replace(")", ", 0.15)").replace("hsl(", "hsla("),
+                          color: gradeColor,
+                          border: `1px solid ${gradeColor.replace(")", ", 0.3)").replace("hsl(", "hsla(")}`,
+                        }}
+                      >
+                        {s.grade}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Right: Pie Chart (optional) */}
+              {showPie && (
+                <div className="bg-muted/30 rounded-xl p-4 border border-border h-fit">
+                  <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                    <div className="h-2 w-2 rounded-full bg-primary" /> Grade Distribution
+                  </h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie data={pieData} cx="50%" cy="50%" innerRadius={40} outerRadius={72} paddingAngle={3} dataKey="value" stroke="none">
+                        {pieData.map((entry, idx) => (
+                          <Cell key={idx} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} subject(s)`, `Grade ${name}`]}
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex flex-wrap justify-center gap-2 mt-2">
+                    {pieData.map((d) => (
+                      <div key={d.name} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: d.color }} />
+                        {d.name} ({d.value})
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
           </div>
         )}
