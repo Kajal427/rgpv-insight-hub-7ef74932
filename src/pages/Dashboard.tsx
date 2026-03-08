@@ -261,79 +261,35 @@ const Dashboard = () => {
 
         {/* Quick Actions */}
         <div className="grid sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          <Link to="/upload-analysis" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(240,50%,55%,0.15)] group-hover:bg-[hsl(240,50%,55%,0.25)] transition-colors">
-                  <FileUp className="h-5 w-5 text-[hsl(220,60%,65%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Upload & Analyze</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Upload result sheet</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/analysis" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(174,60%,30%,0.15)] group-hover:bg-[hsl(174,60%,30%,0.25)] transition-colors">
-                  <BarChart3 className="h-5 w-5 text-[hsl(174,72%,50%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">View Analysis</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Charts & insights</p>
+          {[
+            { to: "/upload-analysis", icon: FileUp, title: "Upload & Analyze", desc: "Upload result sheet", color: "text-primary", bg: "bg-primary/10 group-hover:bg-primary/20" },
+            { to: "/analysis", icon: BarChart3, title: "View Analysis", desc: "Charts & insights", color: "text-success", bg: "bg-success/10 group-hover:bg-success/20" },
+            { to: "/upload-analysis?direct=true", icon: FileSpreadsheet, title: "Quick Excel", desc: "Instant report", color: "text-warning", bg: "bg-warning/10 group-hover:bg-warning/20" },
+            { to: "/batch-compare", icon: GitCompareArrows, title: "Batch Compare", desc: "Side-by-side", color: "text-info", bg: "bg-info/10 group-hover:bg-info/20" },
+            { to: "/student-search", icon: Search, title: "Student Search", desc: "By enrollment", color: "text-primary", bg: "bg-primary/10 group-hover:bg-primary/20" },
+          ].map((action) => (
+            <Link key={action.to} to={action.to} className="block">
+              <div className={`${cardClasses} p-5 hover:border-primary/40 transition-all group cursor-pointer h-full`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${action.bg} transition-colors`}>
+                    <action.icon className={`h-5 w-5 ${action.color}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-foreground text-sm">{action.title}</h3>
+                    <p className="text-xs text-muted-foreground">{action.desc}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-          <Link to="/upload-analysis?direct=true" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(38,92%,50%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(38,92%,50%,0.15)] group-hover:bg-[hsl(38,92%,50%,0.25)] transition-colors">
-                  <FileSpreadsheet className="h-5 w-5 text-[hsl(38,92%,55%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Quick Excel</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Instant report</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/batch-compare" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(280,67%,55%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(280,67%,55%,0.15)] group-hover:bg-[hsl(280,67%,55%,0.25)] transition-colors">
-                  <GitCompareArrows className="h-5 w-5 text-[hsl(280,67%,55%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Batch Compare</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Side-by-side</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/student-search" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(174,72%,50%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(174,72%,50%,0.15)] group-hover:bg-[hsl(174,72%,50%,0.25)] transition-colors">
-                  <Search className="h-5 w-5 text-[hsl(174,72%,50%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Student Search</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">By enrollment</p>
-                </div>
-              </div>
-            </div>
-          </Link>
+            </Link>
+          ))}
         </div>
 
         {/* CSV Upload */}
         <div className={`${cardClasses} p-6 mb-8`}>
-          <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2 text-white">
-            <FileSpreadsheet className="h-5 w-5 text-[hsl(220,60%,65%)]" /> Upload CSV — Fetch from result.rgpv.ac.in
+          <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
+            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Fetch from result.rgpv.ac.in
           </h2>
-          <p className="text-sm text-[hsl(230,15%,50%)] mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Upload a CSV with enrollment numbers. Results will be fetched automatically using AI-powered CAPTCHA solving.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
@@ -350,11 +306,12 @@ const Dashboard = () => {
               </select>
             </div>
           </div>
-          <div className="border-2 border-dashed border-[hsl(230,20%,20%)] rounded-lg p-8 text-center hover:border-[hsl(240,50%,45%,0.4)] transition-colors">
-            <Upload className="h-10 w-10 text-[hsl(230,15%,40%)] mx-auto mb-3" />
-            <p className="text-sm text-[hsl(230,15%,50%)] mb-2">Drag & drop or click to upload CSV</p>
-            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white" disabled={queueState.running} />
+          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
+            <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-2">Drag & drop or click to upload CSV</p>
+            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" disabled={queueState.running} />
           </div>
+        </div>
         </div>
 
         {/* Results Table */}
