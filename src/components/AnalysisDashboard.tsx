@@ -149,7 +149,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
       .sort((a, b) => a.sgpaNum - b.sgpaNum);
     const step = Math.max(1, Math.floor(sorted.length / 20));
     return sorted.filter((_, i) => i % step === 0).map((r, i) => ({
-      idx: i + 1, sgpa: r.sgpaNum, name: r.name.split(" ")[0],
+      idx: i + 1, sgpa: r.sgpaNum, studentName: r.name, shortName: r.name.split(" ")[0],
     }));
   }, [validResults]);
 
