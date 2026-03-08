@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 
 const StudentSearchPage = () => {
   return (
-    <div className="min-h-screen bg-[hsl(230,35%,10%)]">
+    <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="flex items-center gap-3 mb-8">
@@ -13,8 +13,8 @@ const StudentSearchPage = () => {
             <Search className="h-7 w-7 text-[hsl(174,72%,50%)]" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold text-white">Student Search</h1>
-            <p className="text-sm text-[hsl(230,15%,45%)]">Search any student's result by enrollment number</p>
+            <h1 className="font-display text-2xl font-bold text-foreground">Student Search</h1>
+            <p className="text-sm text-muted-foreground">Search any student's result by enrollment number</p>
           </div>
         </div>
         <StudentSearch />

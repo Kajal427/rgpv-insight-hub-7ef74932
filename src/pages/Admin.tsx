@@ -161,8 +161,8 @@ const Admin = () => {
 
   if (adminLoading || loading) {
     return (
-      <div className="min-h-screen bg-[hsl(230,35%,10%)] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-[hsl(220,60%,65%)] animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
       </div>
     );
   }
@@ -177,32 +177,32 @@ const Admin = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-[hsl(230,35%,10%)]">
+    <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-xl bg-[hsl(38,92%,55%,0.12)]">
-              <Shield className="h-7 w-7 text-[hsl(38,92%,55%)]" />
+            <div className="p-2.5 rounded-xl bg-warning/10">
+              <Shield className="h-7 w-7 text-warning" />
             </div>
             <div>
-              <h1 className="font-display text-2xl font-bold text-white">Admin Dashboard</h1>
-              <p className="text-sm text-[hsl(230,15%,45%)]">Manage users, monitor activity, and control roles</p>
+              <h1 className="font-display text-2xl font-bold text-foreground">Admin Dashboard</h1>
+              <p className="text-sm text-muted-foreground">Manage users, monitor activity, and control roles</p>
             </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-[hsl(230,30%,12%)] p-1 rounded-xl border border-[hsl(230,20%,18%)] w-fit">
+        <div className="flex gap-1 mb-6 bg-card p-1 rounded-xl border border-border w-fit">
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
                 tab === t.key
-                  ? "bg-[hsl(240,50%,55%)] text-white shadow-lg shadow-[hsl(240,50%,55%,0.25)]"
-                  : "text-[hsl(230,15%,45%)] hover:text-white hover:bg-[hsl(230,30%,16%)]"
+                  ? "bg-primary text-primary-foreground shadow-lg"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
               }`}
             >
               <t.icon className="h-4 w-4" />

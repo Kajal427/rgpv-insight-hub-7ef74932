@@ -17,10 +17,10 @@ import { fetchQueue, StudentResult, QueueState } from "@/lib/fetchQueue";
 const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
 const SEMESTERS = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: `Semester ${i + 1}` }));
 
-// Dark theme utility classes
-const cardClasses = "bg-[hsl(230,30%,14%)] border border-[hsl(230,20%,20%)] rounded-xl shadow-[0_8px_32px_-8px_hsl(240,50%,15%,0.3)]";
-const labelClasses = "text-sm font-medium text-[hsl(230,15%,55%)] mb-1 block";
-const selectClasses = "w-full rounded-md border border-[hsl(230,20%,20%)] bg-[hsl(230,30%,10%)] px-3 py-2 text-sm text-white";
+// Theme-aware utility classes
+const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
+const labelClasses = "text-sm font-medium text-muted-foreground mb-1 block";
+const selectClasses = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -179,46 +179,46 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[hsl(230,35%,10%)] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(220,60%,65%)]" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(230,35%,10%)]">
+    <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">Dashboard</h1>
         </div>
 
         {/* Background Fetch Status Bar */}
         {queueState.running && !captchaOpen && (
           <div
-            className={`${cardClasses} p-4 mb-6 cursor-pointer hover:border-[hsl(240,50%,45%,0.4)] transition-colors border-[hsl(240,50%,45%,0.3)]`}
+            className={`${cardClasses} p-4 mb-6 cursor-pointer hover:border-primary/40 transition-colors border-primary/30`}
             onClick={() => setCaptchaOpen(true)}
           >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2 text-sm">
-                <Loader2 className="h-4 w-4 text-[hsl(220,60%,65%)] animate-spin" />
-                <span className="font-medium text-white">Fetching results in background...</span>
-                <span className="text-[hsl(230,15%,50%)]">
+                <Loader2 className="h-4 w-4 text-primary animate-spin" />
+                <span className="font-medium text-foreground">Fetching results in background...</span>
+                <span className="text-muted-foreground">
                   {queueState.completedCount} / {queueState.enrollments.length}
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={(e) => { e.stopPropagation(); setCaptchaOpen(true); }}>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-primary" onClick={(e) => { e.stopPropagation(); setCaptchaOpen(true); }}>
                   <Eye className="h-3 w-3" /> View Details
                 </Button>
-                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-red-400 hover:bg-red-500/10" onClick={(e) => { e.stopPropagation(); handleCancel(); }}>
+                <Button variant="ghost" size="sm" className="gap-1 text-xs h-7 text-destructive" onClick={(e) => { e.stopPropagation(); handleCancel(); }}>
                   Stop
                 </Button>
               </div>
             </div>
             <Progress value={queueProgress} className="h-2" />
             {queueState.error && (
-              <p className="text-xs text-red-400 mt-1">{queueState.error}</p>
+              <p className="text-xs text-destructive mt-1">{queueState.error}</p>
             )}
           </div>
         )}
@@ -230,11 +230,11 @@ const Dashboard = () => {
               className="flex items-center justify-between cursor-pointer group"
               onClick={() => setShowProfile(!showProfile)}
             >
-              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-white">
-                <User className="h-5 w-5 text-[hsl(220,60%,65%)]" />
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-foreground">
+                <User className="h-5 w-5 text-primary" />
                 {profile.full_name}
               </h2>
-              <span className={`text-[hsl(230,15%,50%)] transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}>
+              <span className={`text-muted-foreground transition-transform duration-200 ${showProfile ? "rotate-180" : ""}`}>
                 ▾
               </span>
             </div>
@@ -246,11 +246,11 @@ const Dashboard = () => {
                   { label: "Registered On", value: profile.created_at, icon: Clock },
                   { label: "Last Login", value: profile.last_sign_in, icon: Clock },
                 ].map((item) => (
-                  <div key={item.label} className="bg-[hsl(230,30%,10%)] rounded-lg p-4 flex items-start gap-3 border border-[hsl(230,20%,18%)]">
-                    <item.icon className="h-4 w-4 text-[hsl(220,60%,65%)] mt-0.5 shrink-0" />
+                  <div key={item.label} className="bg-background rounded-lg p-4 flex items-start gap-3 border border-border">
+                    <item.icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs text-[hsl(230,15%,45%)] mb-1">{item.label}</p>
-                      <p className="text-sm font-medium text-white">{item.value}</p>
+                      <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
+                      <p className="text-sm font-medium text-foreground">{item.value}</p>
                     </div>
                   </div>
                 ))}
@@ -261,79 +261,35 @@ const Dashboard = () => {
 
         {/* Quick Actions */}
         <div className="grid sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-          <Link to="/upload-analysis" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(240,50%,55%,0.15)] group-hover:bg-[hsl(240,50%,55%,0.25)] transition-colors">
-                  <FileUp className="h-5 w-5 text-[hsl(220,60%,65%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Upload & Analyze</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Upload result sheet</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/analysis" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(240,50%,45%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(174,60%,30%,0.15)] group-hover:bg-[hsl(174,60%,30%,0.25)] transition-colors">
-                  <BarChart3 className="h-5 w-5 text-[hsl(174,72%,50%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">View Analysis</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Charts & insights</p>
+          {[
+            { to: "/upload-analysis", icon: FileUp, title: "Upload & Analyze", desc: "Upload result sheet", color: "text-primary", bg: "bg-primary/10 group-hover:bg-primary/20" },
+            { to: "/analysis", icon: BarChart3, title: "View Analysis", desc: "Charts & insights", color: "text-success", bg: "bg-success/10 group-hover:bg-success/20" },
+            { to: "/upload-analysis?direct=true", icon: FileSpreadsheet, title: "Quick Excel", desc: "Instant report", color: "text-warning", bg: "bg-warning/10 group-hover:bg-warning/20" },
+            { to: "/batch-compare", icon: GitCompareArrows, title: "Batch Compare", desc: "Side-by-side", color: "text-info", bg: "bg-info/10 group-hover:bg-info/20" },
+            { to: "/student-search", icon: Search, title: "Student Search", desc: "By enrollment", color: "text-primary", bg: "bg-primary/10 group-hover:bg-primary/20" },
+          ].map((action) => (
+            <Link key={action.to} to={action.to} className="block">
+              <div className={`${cardClasses} p-5 hover:border-primary/40 transition-all group cursor-pointer h-full`}>
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${action.bg} transition-colors`}>
+                    <action.icon className={`h-5 w-5 ${action.color}`} />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-semibold text-foreground text-sm">{action.title}</h3>
+                    <p className="text-xs text-muted-foreground">{action.desc}</p>
+                  </div>
                 </div>
               </div>
-            </div>
-          </Link>
-          <Link to="/upload-analysis?direct=true" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(38,92%,50%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(38,92%,50%,0.15)] group-hover:bg-[hsl(38,92%,50%,0.25)] transition-colors">
-                  <FileSpreadsheet className="h-5 w-5 text-[hsl(38,92%,55%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Quick Excel</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Instant report</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/batch-compare" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(280,67%,55%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(280,67%,55%,0.15)] group-hover:bg-[hsl(280,67%,55%,0.25)] transition-colors">
-                  <GitCompareArrows className="h-5 w-5 text-[hsl(280,67%,55%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Batch Compare</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">Side-by-side</p>
-                </div>
-              </div>
-            </div>
-          </Link>
-          <Link to="/student-search" className="block">
-            <div className={`${cardClasses} p-5 hover:border-[hsl(174,72%,50%,0.4)] transition-all group cursor-pointer h-full`}>
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-[hsl(174,72%,50%,0.15)] group-hover:bg-[hsl(174,72%,50%,0.25)] transition-colors">
-                  <Search className="h-5 w-5 text-[hsl(174,72%,50%)]" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-white text-sm">Student Search</h3>
-                  <p className="text-xs text-[hsl(230,15%,50%)]">By enrollment</p>
-                </div>
-              </div>
-            </div>
-          </Link>
+            </Link>
+          ))}
         </div>
 
         {/* CSV Upload */}
         <div className={`${cardClasses} p-6 mb-8`}>
-          <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2 text-white">
-            <FileSpreadsheet className="h-5 w-5 text-[hsl(220,60%,65%)]" /> Upload CSV — Fetch from result.rgpv.ac.in
+          <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2 text-foreground">
+            <FileSpreadsheet className="h-5 w-5 text-primary" /> Upload CSV — Fetch from result.rgpv.ac.in
           </h2>
-          <p className="text-sm text-[hsl(230,15%,50%)] mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Upload a CSV with enrollment numbers. Results will be fetched automatically using AI-powered CAPTCHA solving.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
@@ -350,10 +306,10 @@ const Dashboard = () => {
               </select>
             </div>
           </div>
-          <div className="border-2 border-dashed border-[hsl(230,20%,20%)] rounded-lg p-8 text-center hover:border-[hsl(240,50%,45%,0.4)] transition-colors">
-            <Upload className="h-10 w-10 text-[hsl(230,15%,40%)] mx-auto mb-3" />
-            <p className="text-sm text-[hsl(230,15%,50%)] mb-2">Drag & drop or click to upload CSV</p>
-            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto bg-[hsl(230,30%,10%)] border-[hsl(230,20%,20%)] text-white" disabled={queueState.running} />
+          <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary/40 transition-colors">
+            <Upload className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground mb-2">Drag & drop or click to upload CSV</p>
+            <Input type="file" accept=".csv" onChange={handleCsvUpload} className="max-w-xs mx-auto" disabled={queueState.running} />
           </div>
         </div>
 
@@ -361,23 +317,23 @@ const Dashboard = () => {
         {results.length > 0 && (
           <div className={`${cardClasses} p-6 mb-8`}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-white">
-                <BarChart3 className="h-5 w-5 text-[hsl(220,60%,65%)]" /> Fetched Results ({results.length} students)
+              <h2 className="font-display text-lg font-semibold flex items-center gap-2 text-foreground">
+                <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-[hsl(230,15%,50%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={() => { setResults([]); localStorage.removeItem("rgpv_results"); }} disabled={queueState.running} title="Clear results">
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => { setResults([]); localStorage.removeItem("rgpv_results"); }} disabled={queueState.running} title="Clear results">
                 <RefreshCw className="h-4 w-4" />
               </Button>
               <div className="flex gap-2">
                 {results.some((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found") && !queueState.running && (
-                  <Button size="sm" className="gap-2 bg-red-500/20 text-red-400 hover:bg-red-500/30" onClick={retryFailed}>
+                  <Button size="sm" variant="destructive" className="gap-2" onClick={retryFailed}>
                     <Loader2 className="h-4 w-4" /> Retry Failed ({results.filter((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found").length})
                   </Button>
                 )}
-                <Button variant="outline" size="sm" className="gap-2 border-[hsl(230,20%,20%)] text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]" onClick={exportToExcel}>
+                <Button variant="outline" size="sm" className="gap-2" onClick={exportToExcel}>
                   <Download className="h-4 w-4" /> Export Excel
                 </Button>
                 <Link to="/analysis">
-                  <Button variant="outline" size="sm" className="gap-2 border-[hsl(230,20%,20%)] text-[hsl(220,60%,65%)] hover:bg-[hsl(240,50%,55%,0.1)]">
+                  <Button variant="outline" size="sm" className="gap-2">
                     <BarChart3 className="h-4 w-4" /> View Analysis
                   </Button>
                 </Link>
@@ -386,35 +342,31 @@ const Dashboard = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-[hsl(230,20%,20%)]">
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">#</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Enrollment</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Name</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">SGPA</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">CGPA</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Status</th>
-                    <th className="text-left py-3 px-4 text-[hsl(230,15%,45%)] font-medium">Subjects</th>
+                  <tr className="border-b border-border">
+                    {["#", "Enrollment", "Name", "SGPA", "CGPA", "Status", "Subjects"].map((h) => (
+                      <th key={h} className="text-left py-3 px-4 text-muted-foreground font-medium">{h}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
-                    <tr key={r.enrollment} className="border-b border-[hsl(230,20%,18%)] hover:bg-[hsl(240,50%,55%,0.05)] transition-colors">
-                      <td className="py-3 px-4 text-[hsl(230,15%,45%)]">{i + 1}</td>
-                      <td className="py-3 px-4 font-mono text-white">{r.enrollment}</td>
-                      <td className="py-3 px-4 text-white">{r.name}</td>
-                      <td className="py-3 px-4 font-semibold text-[hsl(220,60%,65%)]">{r.sgpa}</td>
-                      <td className="py-3 px-4 text-white">{r.cgpa}</td>
+                    <tr key={r.enrollment} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                      <td className="py-3 px-4 text-muted-foreground">{i + 1}</td>
+                      <td className="py-3 px-4 font-mono text-foreground">{r.enrollment}</td>
+                      <td className="py-3 px-4 text-foreground">{r.name}</td>
+                      <td className="py-3 px-4 font-semibold text-primary">{r.sgpa}</td>
+                      <td className="py-3 px-4 text-foreground">{r.cgpa}</td>
                       <td className="py-3 px-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           r.status === "PASS" || r.status === "Pass"
-                            ? "bg-green-500/15 text-green-400"
+                            ? "bg-success/15 text-success"
                             : r.status === "Skipped"
-                            ? "bg-yellow-500/15 text-yellow-400"
+                            ? "bg-warning/15 text-warning"
                             : r.status === "Not Found"
-                            ? "bg-orange-500/15 text-orange-400"
+                            ? "bg-warning/15 text-warning"
                             : r.status === "Error" || r.status === "FAIL" || r.status === "Fail"
-                            ? "bg-red-500/15 text-red-400"
-                            : "bg-[hsl(230,20%,18%)] text-[hsl(230,15%,50%)]"
+                            ? "bg-destructive/15 text-destructive"
+                            : "bg-muted text-muted-foreground"
                         }`}>
                           {r.status}
                         </span>
@@ -423,13 +375,13 @@ const Dashboard = () => {
                         {r.subjects && r.subjects.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {r.subjects.map((s, si) => (
-                              <span key={si} className="px-1.5 py-0.5 bg-[hsl(230,30%,18%)] rounded text-xs font-mono text-[hsl(230,15%,60%)]">
+                              <span key={si} className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono text-muted-foreground">
                                 {s.code}:{s.grade}
                               </span>
                             ))}
                           </div>
                         ) : (
-                          <span className="text-[hsl(230,15%,40%)] text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </td>
                     </tr>
