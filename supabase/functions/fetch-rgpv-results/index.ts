@@ -374,36 +374,27 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
-      const MAX_ATTEMPTS = 12;
+      const MAX_ATTEMPTS = 15;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
       const MAX_RATE_LIMIT_BACKOFFS = 5;
-      const AI_BASE_DELAY_MS = 500;
+      const AI_BASE_DELAY_MS = 300;
+      // Use stronger models first - flash-lite is too weak for CAPTCHA
       const captchaModels = [
-        "google/gemini-2.5-flash-lite",
         "google/gemini-2.5-flash",
         "google/gemini-3-flash-preview",
         "google/gemini-2.5-pro",
       ];
 
-      const CAPTCHA_PROMPT = `You are a CAPTCHA reader for result.rgpv.ac.in. Read the EXACT text shown in this CAPTCHA image.
+      const CAPTCHA_PROMPT = `Look at this CAPTCHA image carefully. It contains exactly 5 characters made of uppercase letters (A-Z) and/or digits (0-9).
 
-CRITICAL RULES:
-- The text is EXACTLY 5 characters long
-- Characters are ONLY uppercase letters (A-Z) and digits (0-9)
-- IGNORE all colored lines, noise dots, and background patterns completely
-- Focus ONLY on the large main characters
+IMPORTANT: The image has colored noise lines drawn over the text - COMPLETELY IGNORE those lines. Only read the actual text characters underneath.
 
-COMMON CONFUSIONS - Be very careful:
-- O (letter) vs 0 (zero): O is rounder, 0 is narrower
-- I (letter) vs 1 (one): I has serifs, 1 is thin
-- S vs 5: S is curvy, 5 has a flat top
-- B vs 8: B has flat left side, 8 is symmetric
-- Z vs 2: Z has sharp angles, 2 has a curve at bottom
-- G vs 6: G has a horizontal bar, 6 has a closed loop
-- D vs 0: D has flat left, 0 is fully round
-- U vs V: U has a curved bottom, V is pointed
+Tips for this specific CAPTCHA style:
+- Characters may be slightly rotated or distorted
+- Background has random colored lines crossing over - these are NOT part of the text
+- Each character is distinct and separated
 
-Reply with ONLY the 5 characters. Nothing else. No quotes, no spaces, no explanation.`;
+Output ONLY the 5 characters with no other text.`;
 
       let session: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } | null = existingSession || null;
       let captcha: string | null = existingCaptcha || null;
