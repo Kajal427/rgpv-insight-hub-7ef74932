@@ -56,6 +56,7 @@ function getSgpaColor(sgpa: number) {
 
 export function GradeCard({ result, program, semester }: GradeCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const pieData = getGradeDistribution(result.subjects);
   const sgpaNum = parseFloat(result.sgpa) || 0;
   const cgpaNum = parseFloat(result.cgpa) || 0;
   const totalSubjects = result.subjects.length;
