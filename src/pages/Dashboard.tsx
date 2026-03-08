@@ -17,10 +17,10 @@ import { fetchQueue, StudentResult, QueueState } from "@/lib/fetchQueue";
 const PROGRAMS = ["B.E.", "B.Tech.", "M.C.A.", "B.Pharmacy", "M.E.", "M.Tech.", "Diploma", "M.B.A."];
 const SEMESTERS = Array.from({ length: 8 }, (_, i) => ({ value: String(i + 1), label: `Semester ${i + 1}` }));
 
-// Dark theme utility classes
-const cardClasses = "bg-[hsl(230,30%,14%)] border border-[hsl(230,20%,20%)] rounded-xl shadow-[0_8px_32px_-8px_hsl(240,50%,15%,0.3)]";
-const labelClasses = "text-sm font-medium text-[hsl(230,15%,55%)] mb-1 block";
-const selectClasses = "w-full rounded-md border border-[hsl(230,20%,20%)] bg-[hsl(230,30%,10%)] px-3 py-2 text-sm text-white";
+// Theme-aware utility classes
+const cardClasses = "bg-card border border-border rounded-xl shadow-lg";
+const labelClasses = "text-sm font-medium text-muted-foreground mb-1 block";
+const selectClasses = "w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground";
 
 const Dashboard = () => {
   const { toast } = useToast();
@@ -179,18 +179,18 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[hsl(230,35%,10%)] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[hsl(220,60%,65%)]" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(230,35%,10%)]">
+    <div className="min-h-screen bg-background">
       <Navbar />
       <div className="container mx-auto px-4 pt-24 pb-12">
         <div className="mb-8">
-          <h1 className="font-display text-3xl font-bold text-white">Dashboard</h1>
+          <h1 className="font-display text-3xl font-bold text-foreground">Dashboard</h1>
         </div>
 
         {/* Background Fetch Status Bar */}
