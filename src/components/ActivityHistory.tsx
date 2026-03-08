@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Clock, Upload, Download, BarChart3, LogIn, LogOut, UserPlus, Search, Activity } from "lucide-react";
+import { Clock, Upload, Download, BarChart3, LogIn, LogOut, UserPlus, Search, Activity, Trash2 } from "lucide-react";
 
 type ActivityEntry = {
   id: string;
