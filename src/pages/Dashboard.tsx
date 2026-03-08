@@ -393,9 +393,6 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Activity History */}
-        <ActivityHistory />
-
         {/* Analysis Section */}
         {results.length > 0 && (
           <div className="mb-8">
@@ -403,6 +400,12 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+      {/* Activity History — above footer */}
+      <div className="container mx-auto px-4 pb-8">
+        <ActivityHistory />
+      </div>
+
       <Footer />
 
       <CaptchaDialog
