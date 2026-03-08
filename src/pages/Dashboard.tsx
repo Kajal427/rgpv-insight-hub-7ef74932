@@ -333,6 +333,9 @@ const Dashboard = () => {
               <h2 className="font-display text-lg font-semibold flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-primary" /> Fetched Results ({results.length} students)
               </h2>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { setCaptchaOpen(true); fetchQueue.start(results.map(r => r.enrollment), program, semester); }} disabled={queueState.running} title="Re-fetch all results">
+                <Loader2 className={`h-4 w-4 ${queueState.running ? 'animate-spin' : ''}`} />
+              </Button>
               <div className="flex gap-2">
                 {results.some((r) => (r.status === "Error" || r.name === "Fetch Failed") && r.status !== "Not Found") && !queueState.running && (
                   <Button variant="destructive" size="sm" className="gap-2" onClick={retryFailed}>
