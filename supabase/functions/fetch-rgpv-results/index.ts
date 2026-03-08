@@ -517,120 +517,114 @@ No spaces within each guess, no explanation, no other text.`;
             continue;
           }
 
-          // Step 3: Try each guess
+          // Step 3: Try each guess sequentially
           let succeeded = false;
-          for (const guess of guesses) {
+          for (let gi = 0; gi < guesses.length; gi++) {
+            const guess = guesses[gi];
+            console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: trying guess ${gi + 1}/${guesses.length}: "${guess}"`);
 
-          // Step 3: Submit
-          const submitBody = new URLSearchParams();
-          submitBody.set("__VIEWSTATE", session.formFields.__VIEWSTATE || "");
-          submitBody.set("__VIEWSTATEGENERATOR", session.formFields.__VIEWSTATEGENERATOR || "");
-          submitBody.set("__EVENTVALIDATION", session.formFields.__EVENTVALIDATION || "");
-          submitBody.set("__EVENTTARGET", "");
-          submitBody.set("__EVENTARGUMENT", "");
-          submitBody.set("ctl00$ContentPlaceHolder1$txtrollno", enrollment);
-          submitBody.set("ctl00$ContentPlaceHolder1$drpSemester", semester);
-          submitBody.set("ctl00$ContentPlaceHolder1$TextBox1", answer);
-          submitBody.set("ctl00$ContentPlaceHolder1$btnviewresult", "View Result");
+            const submitBody = new URLSearchParams();
+            submitBody.set("__VIEWSTATE", session!.formFields.__VIEWSTATE || "");
+            submitBody.set("__VIEWSTATEGENERATOR", session!.formFields.__VIEWSTATEGENERATOR || "");
+            submitBody.set("__EVENTVALIDATION", session!.formFields.__EVENTVALIDATION || "");
+            submitBody.set("__EVENTTARGET", "");
+            submitBody.set("__EVENTARGUMENT", "");
+            submitBody.set("ctl00$ContentPlaceHolder1$txtrollno", enrollment);
+            submitBody.set("ctl00$ContentPlaceHolder1$drpSemester", semester);
+            submitBody.set("ctl00$ContentPlaceHolder1$TextBox1", guess);
+            submitBody.set("ctl00$ContentPlaceHolder1$btnviewresult", "View Result");
 
-          const step3 = await fetchWithCookies(session.resultPageUrl, {
-            method: "POST",
-            headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": session.resultPageUrl },
-            body: submitBody.toString(),
-          }, session.cookies);
+            const step3 = await fetchWithCookies(session!.resultPageUrl, {
+              method: "POST",
+              headers: { ...baseHeaders, "Content-Type": "application/x-www-form-urlencoded", "Origin": "http://result.rgpv.ac.in", "Referer": session!.resultPageUrl },
+              body: submitBody.toString(),
+            }, session!.cookies);
 
-          const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
-          if (alertMatch) {
-            const alertText = alertMatch[1].toLowerCase();
+            const alertMatch = step3.html.match(/alert\s*\(\s*['"]([^'"]+)['"]\s*\)/);
+            if (alertMatch) {
+              const alertText = alertMatch[1].toLowerCase();
 
-            // Retry on captcha/wrong-text errors by using refreshed captcha from same page when possible
-            if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
-              console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: wrong captcha ("${alertMatch[1]}"), retrying...`);
+              if (alertText.includes("captcha") || alertText.includes("wrong") || alertText.includes("invalid") || alertText.includes("incorrect")) {
+                console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: guess "${guess}" wrong captcha`);
 
-              const retryFields = extractFormFields(step3.html);
-              const retryCaptchaUrl = extractCaptchaUrl(step3.html);
+                // Update session from response for next guess
+                const retryFields = extractFormFields(step3.html);
+                const retryCaptchaUrl = extractCaptchaUrl(step3.html);
 
-              if (retryCaptchaUrl) {
+                if (retryCaptchaUrl) {
+                  try {
+                    const retryImgResp = await fetchWithTimeout(retryCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
+                    const retryImgBuf = await retryImgResp.arrayBuffer();
+                    const retryB64 = btoa(String.fromCharCode(...new Uint8Array(retryImgBuf)));
+                    const retryMime = retryImgResp.headers.get("content-type") || "image/png";
+                    captcha = `data:${retryMime};base64,${retryB64}`;
+                    session = {
+                      cookies: step3.cookies,
+                      formFields: Object.keys(retryFields).length > 0 ? retryFields : session!.formFields,
+                      resultPageUrl: step3.finalUrl,
+                    };
+                    lastKnownCaptcha = captcha;
+                    lastKnownSession = session;
+                  } catch {
+                    session = null;
+                    captcha = null;
+                  }
+                } else {
+                  session = null;
+                  captcha = null;
+                }
+                // Continue to next guess only if we DON'T have a new captcha (same session still valid for remaining guesses is unlikely after wrong captcha)
+                // Actually after wrong captcha, the server gives a NEW captcha, so remaining guesses from AI won't match — break and get fresh guesses
+                break;
+              }
+
+              // Non-captcha error (e.g. enrollment not found)
+              return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            }
+
+            const parsed = parseResultHtml(step3.html, enrollment);
+            if (parsed) {
+              console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
+
+              // Get next session for chaining
+              const newFields = extractFormFields(step3.html);
+              const newCaptchaUrl = extractCaptchaUrl(step3.html);
+              let nextSession: { captchaImage: string; sessionData: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } } | null = null;
+
+              if (newCaptchaUrl) {
                 try {
-                  const retryImgResp = await fetchWithTimeout(retryCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
-                  const retryImgBuf = await retryImgResp.arrayBuffer();
-                  const retryB64 = btoa(String.fromCharCode(...new Uint8Array(retryImgBuf)));
-                  const retryMime = retryImgResp.headers.get("content-type") || "image/png";
-                  captcha = `data:${retryMime};base64,${retryB64}`;
-                  session = {
-                    cookies: step3.cookies,
-                    formFields: Object.keys(retryFields).length > 0 ? retryFields : session.formFields,
-                    resultPageUrl: step3.finalUrl,
+                  const imgResp2 = await fetchWithTimeout(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
+                  const imgBuf2 = await imgResp2.arrayBuffer();
+                  const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
+                  const mime2 = imgResp2.headers.get("content-type") || "image/png";
+                  nextSession = {
+                    captchaImage: `data:${mime2};base64,${b642}`,
+                    sessionData: {
+                      cookies: step3.cookies,
+                      formFields: Object.keys(newFields).length > 0 ? newFields : session!.formFields,
+                      resultPageUrl: step3.finalUrl,
+                    },
                   };
-                  lastKnownCaptcha = captcha;
-                  lastKnownSession = session;
-                  await wait(300);
-                  continue;
-                } catch {
-                  // fallback to full re-init below
+                } catch (_) {
+                  // no-op
                 }
               }
 
-              session = null;
-              captcha = null;
-              await wait(300);
-              continue;
+              return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
+                { headers: { ...corsHeaders, "Content-Type": "application/json" } });
             }
-
-            return new Response(JSON.stringify({ success: false, error: alertMatch[1] }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+            
+            // Parse failed but no alert — might be a page issue, break and retry
+            session = null;
+            captcha = null;
+            break;
           }
 
-          const parsed = parseResultHtml(step3.html, enrollment);
-          if (parsed) {
-            console.log(`[auto-fetch] ${enrollment}: ✅ ${parsed.name}, SGPA:${parsed.sgpa}`);
-
-            // Get next session for chaining
-            const newFields = extractFormFields(step3.html);
-            const newCaptchaUrl = extractCaptchaUrl(step3.html);
-            let nextSession: { captchaImage: string; sessionData: { cookies: string; formFields: Record<string, string>; resultPageUrl: string } } | null = null;
-
-            if (newCaptchaUrl) {
-              try {
-                const imgResp2 = await fetchWithTimeout(newCaptchaUrl, { headers: { "Cookie": step3.cookies, "User-Agent": ua } }, 15000);
-                const imgBuf2 = await imgResp2.arrayBuffer();
-                const b642 = btoa(String.fromCharCode(...new Uint8Array(imgBuf2)));
-                const mime2 = imgResp2.headers.get("content-type") || "image/png";
-                nextSession = {
-                  captchaImage: `data:${mime2};base64,${b642}`,
-                  sessionData: {
-                    cookies: step3.cookies,
-                    formFields: Object.keys(newFields).length > 0 ? newFields : session.formFields,
-                    resultPageUrl: step3.finalUrl,
-                  },
-                };
-              } catch (_) {
-                // no-op
-              }
-            }
-
-            return new Response(JSON.stringify({ success: true, result: parsed, nextSession }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          // If none of the guesses worked, loop continues to next attempt with fresh captcha
+          if (!session) {
+            await wait(200);
           }
-
-          // If parse failed, refresh and retry instead of failing immediately
-          session = null;
-          captcha = null;
-          await wait(300);
-
-        } catch (e) {
-          console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1} error: ${e}`);
-          session = null;
-          captcha = null;
-
-          if (attempt === MAX_ATTEMPTS - 1) {
-            return new Response(JSON.stringify({ success: false, error: `Failed after ${MAX_ATTEMPTS} attempts: ${e instanceof Error ? e.message : "Unknown"}` }),
-              { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-          }
-
-          await wait(300);
-        }
-      }
 
       return new Response(JSON.stringify({ 
         success: false, 
