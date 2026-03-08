@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     await transporter.sendMail({
       from: `"RGPV Analyzer Contact" <${gmailUser}>`,
-      to: "suppotrgpv@gmail.com",
+      to: "supportrgpv@gmail.com",
       replyTo: email,
       subject: `[Contact Form] ${subject}`,
       html: `
