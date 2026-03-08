@@ -178,6 +178,7 @@ const Admin = () => {
                       <tr key={p.id} className="border-b border-[hsl(230,20%,18%)] hover:bg-[hsl(240,50%,55%,0.05)]">
                         <td className="py-3 px-4 text-[hsl(230,15%,45%)]">{i + 1}</td>
                         <td className="py-3 px-4 text-white font-medium">{p.full_name}</td>
+                        <td className="py-3 px-4 text-[hsl(230,15%,60%)]">{p.email || "—"}</td>
                         <td className="py-3 px-4 text-[hsl(230,15%,60%)]">{p.department}</td>
                         <td className="py-3 px-4 text-[hsl(230,15%,60%)]">{p.phone || "—"}</td>
                         <td className="py-3 px-4 text-[hsl(230,15%,50%)]">
