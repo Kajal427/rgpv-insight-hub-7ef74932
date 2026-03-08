@@ -95,7 +95,7 @@ const Register = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setOtpSent(true);
-      setCooldown(60);
+      setCooldown(30);
       toast({ title: "OTP Sent!", description: "Check your email for the 6-digit code." });
     } catch (err: any) {
       toast({ title: "Failed to send OTP", description: err.message, variant: "destructive" });
