@@ -11,7 +11,7 @@ const features = [
 
 export const FeaturesSection = () => {
   return (
-    <section id="features" className="py-24 bg-secondary/50">
+    <section id="features" className="py-24 bg-background">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="font-display text-3xl sm:text-4xl font-bold mb-4">Powerful Features</h2>
