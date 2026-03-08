@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  AreaChart, Area,
+  LineChart, Line,
 } from "recharts";
 import { TrendingUp, Users, Award, BarChart3, Trophy, Target, Zap, GraduationCap } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -210,12 +210,12 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
 
       {/* Charts Grid */}
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* SGPA Distribution */}
+        {/* Histogram — Marks Distribution */}
         <Card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-primary" />
-              SGPA Distribution
+              Histogram — Marks Distribution
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -275,30 +275,24 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           </CardContent>
         </Card>
 
-        {/* SGPA Trend Curve */}
+        {/* Semester Performance - Line Chart */}
         <Card className="card-glow border-border/50 overflow-hidden">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-info" />
-              SGPA Spread (Low → High)
+              Semester Performance (SGPA Trend)
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={sgpaTrend}>
+                <LineChart data={sgpaTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
-                  <XAxis dataKey="idx" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                  <XAxis dataKey="idx" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} label={{ value: "Students", position: "insideBottom", offset: -2, fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
                   <YAxis domain={[0, 10]} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(val: number) => [val.toFixed(2), "SGPA"]} />
-                  <defs>
-                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="hsl(210, 100%, 52%)" stopOpacity={0.4} />
-                      <stop offset="100%" stopColor="hsl(210, 100%, 52%)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="sgpa" stroke="hsl(210, 100%, 52%)" fill="url(#areaGrad)" strokeWidth={2.5} />
-                </AreaChart>
+                  <Tooltip contentStyle={tooltipStyle} formatter={(val: number) => [val.toFixed(2), "SGPA"]} labelFormatter={(l) => `Student #${l}`} />
+                  <Line type="monotone" dataKey="sgpa" stroke="hsl(210, 100%, 52%)" strokeWidth={2.5} dot={{ r: 3, fill: "hsl(210, 100%, 52%)" }} activeDot={{ r: 5 }} />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -367,7 +361,7 @@ export function AnalysisDashboard({ results, program, semester }: AnalysisDashbo
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-display flex items-center gap-2">
               <div className="h-2 w-2 rounded-full bg-accent-foreground" />
-              Subject-wise Grade Distribution
+              Bar Chart — Subject-wise Marks
             </CardTitle>
           </CardHeader>
           <CardContent>
