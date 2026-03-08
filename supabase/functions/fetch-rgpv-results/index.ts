@@ -632,7 +632,7 @@ Reply with ONLY the 5 characters, nothing else. Example: A3B7K`;
 
       return new Response(JSON.stringify({ 
         success: false, 
-        error: `Failed after ${MAX_ATTEMPTS} attempts. AI could not solve the CAPTCHA.`,
+        error: `Failed after ${MAX_ATTEMPTS} attempts. CAPTCHA could not be solved.`,
       }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
