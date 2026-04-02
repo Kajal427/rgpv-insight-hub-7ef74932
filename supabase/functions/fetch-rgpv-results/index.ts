@@ -434,10 +434,19 @@ Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.
             lastKnownSession = session;
           }
 
-          // Step 2: AI solve captcha — rotate through models across attempts
+          // Step 2: If AI not available, immediately return manual fallback
+          if (!aiAvailable) {
+            console.log(`[auto-fetch] ${enrollment}: No AI credits/key, returning manual fallback`);
+            return new Response(JSON.stringify({ 
+              success: false, 
+              error: "Manual CAPTCHA required (AI not available)",
+              manualFallback: { captchaImage: captcha, sessionData: session },
+            }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+          }
+
+          // Step 2b: AI solve captcha — rotate through models across attempts
           let guess = "";
           let lastAiError = "";
-          // Pick model based on attempt number to rotate through all models
           const modelIndex = attempt % captchaModels.length;
           const model = captchaModels[modelIndex];
           let rateLimitBackoffs = 0;
@@ -476,8 +485,13 @@ Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.
               }
 
               if (aiResp.status === 402) {
-                return new Response(JSON.stringify({ success: false, error: "AI credits depleted" }),
-                  { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+                // Credits depleted — fall back to manual CAPTCHA instead of failing
+                console.log(`[auto-fetch] ${enrollment}: AI credits depleted, returning manual fallback`);
+                return new Response(JSON.stringify({ 
+                  success: false, 
+                  error: "Manual CAPTCHA required (AI credits exhausted)",
+                  manualFallback: { captchaImage: captcha, sessionData: session },
+                }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
               }
 
               if (!aiResp.ok) {
@@ -505,7 +519,6 @@ Output EXACTLY 5 characters, nothing else. No spaces, no quotes, no explanation.
 
           if (!guess) {
             console.log(`[auto-fetch] ${enrollment} attempt ${attempt + 1}: no valid AI guess. ${lastAiError}`);
-            // Don't reset session — try same captcha with next model on next attempt
             if (attempt < MAX_ATTEMPTS - 1) {
               await wait(300);
               continue;
