@@ -65,7 +65,7 @@ export function StudentSearch() {
           setError("Student not found. Check enrollment number and try again.");
         } else if (data?.manualFallback) {
           setManualFallback(data.manualFallback);
-          setError("AI couldn't solve the CAPTCHA. Please solve it manually below.");
+          setError("Please solve the CAPTCHA manually below to fetch the result.");
         } else {
           setError(msg);
         }
