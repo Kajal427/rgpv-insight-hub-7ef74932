@@ -369,10 +369,7 @@ Deno.serve(async (req) => {
       }
 
       const apiKey = Deno.env.get("LOVABLE_API_KEY");
-      if (!apiKey) {
-        return new Response(JSON.stringify({ success: false, error: "AI API key not configured" }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      const aiAvailable = !!apiKey;
 
       const MAX_ATTEMPTS = 12;
       const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
