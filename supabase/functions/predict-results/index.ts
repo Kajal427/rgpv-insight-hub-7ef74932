@@ -11,7 +11,7 @@ serve(async (req) => {
   try {
     const { results, program, semester } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const aiAvailable = !!LOVABLE_API_KEY;
 
     if (!results || results.length === 0) {
       return new Response(JSON.stringify({ error: "No results provided" }), {
