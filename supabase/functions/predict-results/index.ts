@@ -11,7 +11,7 @@ serve(async (req) => {
   try {
     const { results, program, semester } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const aiAvailable = !!LOVABLE_API_KEY;
 
     if (!results || results.length === 0) {
       return new Response(JSON.stringify({ error: "No results provided" }), {
@@ -91,58 +91,125 @@ ${studentDetails}
 
 Analyze each student's SGPA and grades. Predict their next semester SGPA and identify who needs help.`;
 
-    const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
-    let lastError = "";
+    // Helper: generate offline stats-based prediction
+    const generateLocalPrediction = () => {
+      const passRate = ((passCount / validResults.length) * 100).toFixed(1);
+      const avgSGPA = avg.toFixed(2);
+      const maxSGPA = Math.max(...sgpas).toFixed(2);
+      const minSGPA = Math.min(...sgpas).toFixed(2);
+      const avgCGPA = cgpas.length > 0 ? (cgpas.reduce((a: number, b: number) => a + b, 0) / cgpas.length).toFixed(2) : "N/A";
 
-    for (const model of models) {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          stream: false,
-        }),
+      const atRisk = validResults.filter((r: any) => {
+        const s = parseFloat(r.sgpa);
+        return !isNaN(s) && s < 5;
+      });
+      const stars = validResults.filter((r: any) => {
+        const s = parseFloat(r.sgpa);
+        return !isNaN(s) && s >= 8;
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const prediction = data.choices?.[0]?.message?.content || "Unable to generate prediction.";
-        return new Response(JSON.stringify({ prediction }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const hardSubjects = Object.entries(subjectPerf)
+        .filter(([, d]) => d.fails > 0)
+        .sort((a, b) => b[1].fails - a[1].fails)
+        .slice(0, 5);
+
+      let prediction = `## 📊 Class Overview\n`;
+      prediction += `Total Students: **${validResults.length}** | Pass: **${passCount}** | Fail: **${validResults.length - passCount}** | Pass Rate: **${passRate}%**\n`;
+      prediction += `Average SGPA: **${avgSGPA}** | Max: **${maxSGPA}** | Min: **${minSGPA}** | Avg CGPA: **${avgCGPA}**\n\n`;
+
+      prediction += `## 🔮 Student-wise Prediction (Next Semester)\n`;
+      validResults.forEach((r: any) => {
+        const s = parseFloat(r.sgpa);
+        const failCount = r.subjects?.filter((sub: any) => sub.grade === "F").length || 0;
+        let risk = "🟢 Low";
+        let predictedSGPA = s;
+        if (isNaN(s)) { risk = "🟡 Medium"; }
+        else if (s < 4 || failCount >= 3) { risk = "🔴 High"; predictedSGPA = Math.min(s + 0.3, 10); }
+        else if (s < 6 || failCount >= 1) { risk = "🟡 Medium"; predictedSGPA = Math.min(s + 0.2, 10); }
+        else { predictedSGPA = Math.max(s - 0.1, s * 0.98); }
+        prediction += `- **${r.name}** (SGPA: ${r.sgpa}) → Predicted: ${predictedSGPA.toFixed(2)} | Risk: ${risk} | ${failCount > 0 ? `${failCount} backlogs` : "On track"}\n`;
+      });
+
+      if (atRisk.length > 0) {
+        prediction += `\n## ⚠️ At-Risk Students (Need Attention)\n`;
+        atRisk.forEach((r: any) => {
+          const fails = r.subjects?.filter((sub: any) => sub.grade === "F").map((sub: any) => sub.code).join(", ") || "None";
+          prediction += `- **${r.name}** — SGPA: ${r.sgpa} | Failed: ${fails}\n`;
         });
       }
 
-      const t = await response.text();
-      lastError = `${model}: ${response.status} ${t}`;
-      console.warn("Model failed:", lastError);
-
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (stars.length > 0) {
+        prediction += `\n## 🌟 Star Performers\n`;
+        stars.forEach((r: any) => {
+          prediction += `- **${r.name}** — SGPA: ${r.sgpa} | CGPA: ${r.cgpa}\n`;
         });
       }
 
-      // Try next model for rate limits or other errors
-      if (response.status === 429) continue;
-      // For non-rate-limit errors, still try next model
-      continue;
+      if (hardSubjects.length > 0) {
+        prediction += `\n## 📝 Subject-wise Insights\n`;
+        hardSubjects.forEach(([code, d]) => {
+          const failPct = ((d.fails / d.total) * 100).toFixed(0);
+          prediction += `- **${code}**: ${d.fails}/${d.total} failed (${failPct}%)\n`;
+        });
+      }
+
+      prediction += `\n## 💡 Recommendations\n`;
+      prediction += `- Focus extra tutorials on subjects with high failure rates\n`;
+      if (atRisk.length > 0) prediction += `- Schedule counseling for ${atRisk.length} at-risk students\n`;
+      prediction += `- Encourage peer study groups for struggling students\n`;
+      prediction += `\n> ℹ️ *This analysis is based on statistical calculations. AI-powered detailed analysis is temporarily unavailable.*`;
+
+      return prediction;
+    };
+
+    // Try AI models if available
+    if (aiAvailable) {
+      const models = ["google/gemini-3-flash-preview", "google/gemini-2.5-flash", "google/gemini-2.5-flash-lite"];
+
+      for (const model of models) {
+        try {
+          const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+              ],
+              stream: false,
+            }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const prediction = data.choices?.[0]?.message?.content || generateLocalPrediction();
+            return new Response(JSON.stringify({ prediction }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
+
+          const t = await response.text();
+          console.warn(`Model ${model} failed: ${response.status} ${t}`);
+
+          // On 402 (credits depleted), fall back to local prediction
+          if (response.status === 402) break;
+          // On 429, try next model
+          if (response.status === 429) continue;
+          continue;
+        } catch (err) {
+          console.warn(`Model ${model} error:`, err);
+          continue;
+        }
+      }
     }
 
-    // All models failed
-    return new Response(JSON.stringify({
-      error: "Rate limit exceeded. Please try again in a minute.",
-      retry_after_seconds: 60,
-      details: lastError,
-    }), {
-      status: 429,
+    // Fallback: local stats-based prediction (no AI needed)
+    const prediction = generateLocalPrediction();
+    return new Response(JSON.stringify({ prediction }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
